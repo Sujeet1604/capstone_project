@@ -900,3 +900,116 @@ write.csv(timeliness,file = "Timeliness Of Care.csv")
 write.csv(effectiveness,file = "Effectiveness Of Care.csv")
 
 #-----------------------Timely and Effective Care END------------------------------------#
+
+#-----------------------Medical Imaging Efficiency START------------------------------------#
+
+# MIE HOSPITAL LEVEL CLEANING AND GROUPING #
+# READ MIE_Hospital #
+MIE_Hospital <- read.csv("Outpatient Imaging Efficiency - Hospital.csv",stringsAsFactors = FALSE)
+View(MIE_Hospital)
+
+# CHECKING FOR NA'S #
+nrow(MIE_Hospital[which(is.na(MIE_Hospital$Score)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(MIE_Hospital[which(MIE_Hospital$Score ==
+                          "Not Available"), ]) #12595
+
+# CHANGING "Not Available" TO NA #
+MIE_Hospital[which(MIE_Hospital$Score ==
+                     "Not Available"), "Score"]<- NA
+
+# CHECKING FOR DUPLICATES #
+nrow(MIE_Hospital)
+nrow(unique(MIE_Hospital))
+
+# TRANSPOSING THE MAIN VARIABLES Score #
+Score <-
+  spread(MIE_Hospital[, c("Provider.ID", "Measure.ID", "Score")],
+         Measure.ID,
+         Score)
+
+colnames(Score)[-1]<-paste(colnames(Score)[-1],"_SCO",sep = "")
+
+# GETTING THE UNIQUE DATA RELATED TO HOSPITALS #
+hospital_data<-unique(MIE_Hospital[,c(1,2,3,4,5,6,7,8)])
+
+# JOINING hospital_data WITH Compared.to.National, Denominator AND Score #
+final_mie <-
+  join_all(list(hospital_data, Score), by = "Provider.ID")
+
+blanks_columns <- grep(nrow(final_mie),
+                       sapply(final_mie, function(x)
+                         sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+# MIE HOSPITAL LEVEL CLEANING AND GROUPING #
+
+# MIE STATE LEVEL CLEANING AND GROUPING #
+MIE_State <- read.csv("Outpatient Imaging Efficiency - State.csv",stringsAsFactors = FALSE)
+
+# CHECKING FOR NA'S #
+nrow(MIE_State[which(is.na(MIE_State$Score)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(MIE_State[which(MIE_State$Score ==
+                       "Not Available"), ]) #15
+
+# CHANGING "Not Available" TO NA #
+MIE_State[which(MIE_State$Score ==
+                  "Not Available"), "Score"]<- NA
+
+# CHECKING FOR DUPLICATES #
+nrow(MIE_State)
+nrow(unique(MIE_State))
+
+# TRANSPOSING THE MAIN VARIABLES Score #
+Score_STA <-
+  spread(MIE_State[, c("State", "Measure.ID", "Score")],
+         Measure.ID,
+         Score)
+
+colnames(Score_STA)[-1]<-paste(colnames(Score_STA)[-1],"_SCO_STA",sep = "")
+
+# JOINING hospital_data WITH Compared.to.National, Denominator AND Score #
+final_mie <-
+  join_all(list(final_mie, Score_STA), by = "State")
+
+blanks_columns <- grep(nrow(final_mie),
+                       sapply(final_mie, function(x)
+                         sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+# MIE STATE LEVEL CLEANING AND GROUPING #
+
+# MIE NATIONAL LEVEL CLEANING AND GROUPING #
+MIE_National <- read.csv("Outpatient Imaging Efficiency - National.csv",stringsAsFactors = FALSE)
+
+# CHECKING FOR NA'S #
+nrow(MIE_National[which(is.na(MIE_National$Score)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(MIE_National[which(MIE_National$Score ==
+                          "Not Available"), ]) #0
+
+# CHECKING FOR DUPLICATES #
+nrow(MIE_National)
+nrow(unique(MIE_National))
+
+# TRANSPOSING THE MAIN VARIABLES Score #
+Score_NAT <-
+  spread(MIE_National[, c("Measure.ID", "Score")],
+         Measure.ID,
+         Score)
+
+colnames(Score_NAT)[-1]<-paste(colnames(Score_NAT)[-1],"_SCO_NAT",sep = "")
+
+# JOINING hospital_data WITH Score #
+final_mie <-
+  cbind(final_mie, Score_NAT)
+
+blanks_columns <- grep(nrow(final_mie),
+                       sapply(final_mie, function(x)
+                         sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+# MIE NATIONAL LEVEL CLEANING AND GROUPING #
+
+# WRITE FILE Medical Imaging Efficiency #
+write.csv(final_mie,file = "Efficient Use Of Medical Imaging.csv")
+
+#-----------------------Medical Imaging Efficiency END------------------------------------#
