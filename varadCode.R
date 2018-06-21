@@ -457,7 +457,7 @@ HAI_Hospital[which(HAI_Hospital$Score ==
 nrow(HAI_Hospital)
 nrow(unique(HAI_Hospital))
 
-# TRANSPOSING THE MAIN VARIABLES Compared.to.National, Denominator AND Score #
+# TRANSPOSING THE MAIN VARIABLES Compared.to.National AND Score #
 Compared.to.National <-
   spread(HAI_Hospital[, c("Provider.ID", "Measure.ID", "Compared.to.National")],
          Measure.ID,
@@ -493,7 +493,7 @@ nrow(HAI_State[which(HAI_State$Score ==
 HAI_State[which(HAI_State$Score ==
                   "Not Available"), "Score"]<- NA
 
-# TRANSPOSING THE MAIN VARIABLES Worse, Same, Better AND Too.Few #
+# TRANSPOSING THE MAIN VARIABLES Score #
 Score_STA <-
   spread(HAI_State[, c("State", "Measure.ID", "Score")],
          Measure.ID,
@@ -514,7 +514,7 @@ View(HAI_National)
 nrow(HAI_National[which(HAI_National$Score ==
                           "Not Available"), ]) #0
 
-# TRANSPOSING THE MAIN VARIABLES Rate, Worse, Same, Better AND Too.Few #
+# TRANSPOSING THE MAIN VARIABLES Score #
 Score_NAT <-
   spread(HAI_National[, c("Measure.ID", "Score")],
          Measure.ID,
@@ -543,3 +543,360 @@ SOC<-join_all(list(final_hai,final_complications_without_death),by = "Provider.I
 write.csv(SOC,file = "Safety Of Care.csv")
 
 #-----------------------SAFETY OF CARE END------------------------------------#
+
+#-----------------------PATIENT EXPERIENCE START------------------------------------#
+# HCAHPS HOSPITAL LEVEL CLEANING AND GROUPING #
+# READ HCAHPS_Hospital #
+HCAHPS_Hospital <- read.csv("HCAHPS - Hospital.csv",stringsAsFactors = FALSE)
+View(HCAHPS_Hospital)
+
+# CHECKING FOR NA'S #
+nrow(HCAHPS_Hospital[which(is.na(HCAHPS_Hospital$Patient.Survey.Star.Rating)),]) #0
+nrow(HCAHPS_Hospital[which(is.na(HCAHPS_Hospital$HCAHPS.Answer.Percent)),]) #0
+nrow(HCAHPS_Hospital[which(is.na(HCAHPS_Hospital$HCAHPS.Linear.Mean.Value)),]) #0
+nrow(HCAHPS_Hospital[which(is.na(HCAHPS_Hospital$Number.of.Completed.Surveys)),]) #0
+
+# CHECKING FOR "Not Available" AND "Not Applicable" #
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$Patient.Survey.Star.Rating ==
+                             "Not Available"), ]) #15720
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$Patient.Survey.Star.Rating ==
+                             "Not Applicable"), ]) #207174
+
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Answer.Percent ==
+                             "Not Available"), ]) #18648
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Answer.Percent ==
+                             "Not Applicable"), ]) #110814
+
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Linear.Mean.Value ==
+                             "Not Available"), ]) #14410
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Linear.Mean.Value ==
+                             "Not Applicable"), ]) #211992
+
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$Number.of.Completed.Surveys ==
+                             "Not Available"), ]) #31735
+nrow(HCAHPS_Hospital[which(HCAHPS_Hospital$Number.of.Completed.Surveys ==
+                             "Not Applicable"), ]) #0
+
+# CHANGING "Not Available" AND "Not Applicable" TO NA #
+HCAHPS_Hospital[which(HCAHPS_Hospital$Patient.Survey.Star.Rating ==
+                        "Not Available"), "Patient.Survey.Star.Rating"]<- NA
+HCAHPS_Hospital[which(HCAHPS_Hospital$Patient.Survey.Star.Rating ==
+                        "Not Applicable"), "Patient.Survey.Star.Rating"]<- NA
+
+HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Answer.Percent ==
+                        "Not Available"), "HCAHPS.Answer.Percent"]<- NA
+HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Answer.Percent ==
+                        "Not Applicable"), "HCAHPS.Answer.Percent"]<- NA
+
+HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Linear.Mean.Value ==
+                        "Not Available"), "HCAHPS.Linear.Mean.Value"]<- NA
+HCAHPS_Hospital[which(HCAHPS_Hospital$HCAHPS.Linear.Mean.Value ==
+                        "Not Applicable"), "HCAHPS.Linear.Mean.Value"]<- NA
+
+HCAHPS_Hospital[which(HCAHPS_Hospital$Number.of.Completed.Surveys ==
+                        "Not Available"), "Number.of.Completed.Surveys"]<- NA
+
+# CHECKING FOR DUPLICATES #
+nrow(HCAHPS_Hospital)
+nrow(unique(HCAHPS_Hospital))
+
+# TRANSPOSING THE MAIN VARIABLES Patient.Survey.Star.Rating, HCAHPS.Answer.Percent, HCAHPS.Linear.Mean.Value AND Number.of.Completed.Surveys #
+Patient.Survey.Star.Rating <-
+  spread(HCAHPS_Hospital[, c("Provider.ID", "HCAHPS.Measure.ID", "Patient.Survey.Star.Rating")],
+         HCAHPS.Measure.ID,
+         Patient.Survey.Star.Rating)
+
+colnames(Patient.Survey.Star.Rating)[-1]<-paste(colnames(Patient.Survey.Star.Rating)[-1],"_SSR",sep = "")
+
+HCAHPS.Answer.Percent <-
+  spread(HCAHPS_Hospital[, c("Provider.ID", "HCAHPS.Measure.ID", "HCAHPS.Answer.Percent")],
+         HCAHPS.Measure.ID,
+         HCAHPS.Answer.Percent)
+
+colnames(HCAHPS.Answer.Percent)[-1]<-paste(colnames(HCAHPS.Answer.Percent)[-1],"_APE",sep = "")
+
+HCAHPS.Linear.Mean.Value <-
+  spread(HCAHPS_Hospital[, c("Provider.ID", "HCAHPS.Measure.ID", "HCAHPS.Linear.Mean.Value")],
+         HCAHPS.Measure.ID,
+         HCAHPS.Linear.Mean.Value)
+
+colnames(HCAHPS.Linear.Mean.Value)[-1]<-paste(colnames(HCAHPS.Linear.Mean.Value)[-1],"_LMV",sep = "")
+
+Number.of.Completed.Surveys <-
+  spread(HCAHPS_Hospital[, c("Provider.ID", "HCAHPS.Measure.ID", "Number.of.Completed.Surveys")],
+         HCAHPS.Measure.ID,
+         Number.of.Completed.Surveys)
+
+colnames(Number.of.Completed.Surveys)[-1]<-paste(colnames(Number.of.Completed.Surveys)[-1],"_NCS",sep = "")
+
+# REMOVING COLUMNS WHICH ARE COMPLETELY BLANKS/NA FROM VARIABLES #
+Patient.Survey.Star.Rating[Patient.Survey.Star.Rating==""]<-NA
+HCAHPS.Answer.Percent[HCAHPS.Answer.Percent==""]<-NA
+HCAHPS.Linear.Mean.Value[HCAHPS.Linear.Mean.Value==""]<-NA
+Number.of.Completed.Surveys[Number.of.Completed.Surveys==""]<-NA
+
+length(grep(nrow(Patient.Survey.Star.Rating),
+            sapply(Patient.Survey.Star.Rating, function(x)
+              sum(is.na(x)))))# 43 OF THE COLUMNS ARE COMPLETELY BLANK
+
+length(grep(nrow(HCAHPS.Answer.Percent),
+            sapply(HCAHPS.Answer.Percent, function(x)
+              sum(is.na(x)))))# 23 OF THE COLUMNS ARE COMPLETELY BLANK
+
+length(grep(nrow(HCAHPS.Linear.Mean.Value),
+            sapply(HCAHPS.Linear.Mean.Value, function(x)
+              sum(is.na(x)))))# 44 OF THE COLUMNS ARE COMPLETELY BLANK
+
+length(grep(nrow(Number.of.Completed.Surveys),
+            sapply(Number.of.Completed.Surveys, function(x)
+              sum(is.na(x)))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+
+# MAJORITY OF THE COLUMNS IN Patient.Survey.Star.Rating AND HCAHPS.Linear.Mean.Value #
+# ARE BLANK. HENCE WE WILL USE ONLY HCAHPS.Answer.Percent AND Number.of.Completed.Surveys #
+
+blanks_columns <- grep(nrow(HCAHPS.Answer.Percent),
+                       sapply(HCAHPS.Answer.Percent, function(x)
+                         sum(is.na(x))))# 23 OF THE COLUMNS ARE COMPLETELY BLANK
+
+Number.of.Completed.Surveys <-
+  Number.of.Completed.Surveys[,-c(blanks_columns)]
+HCAHPS.Answer.Percent <-
+  HCAHPS.Answer.Percent[,-c(blanks_columns)]
+
+# GETTING THE UNIQUE DATA RELATED TO HOSPITALS #
+hospital_data<-unique(HCAHPS_Hospital[,c(1,2,3,4,5,6,7,8)])
+
+# JOINING hospital_data WITH HCAHPS.Linear.Mean.Value AND Number.of.Completed.Surveys #
+final_hcahps<-join_all(list(hospital_data, HCAHPS.Answer.Percent, Number.of.Completed.Surveys), by = "Provider.ID")
+# HCAHPS HOSPITAL LEVEL CLEANING AND GROUPING #
+
+# HCAHPS STATE LEVEL CLEANING AND GROUPING #
+# READ HCAHPS_State #
+HCAHPS_State <- read.csv("HCAHPS - State.csv",stringsAsFactors = FALSE)
+View(HCAHPS_State)
+
+# CHECKING FOR NA'S #
+nrow(HCAHPS_State[which(is.na(HCAHPS_State$HCAHPS.Answer.Percent)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(HCAHPS_State[which(HCAHPS_State$HCAHPS.Answer.Percent ==
+                          "Not Available"), ]) #96
+
+# CHANGING "Not Available" TO NA #
+HCAHPS_State[which(HCAHPS_State$HCAHPS.Answer.Percent ==
+                     "Not Available"), "HCAHPS.Answer.Percent"]<- NA
+
+# CHECKING FOR DUPLICATES #
+nrow(HCAHPS_State)
+nrow(unique(HCAHPS_State))
+
+# TRANSPOSING THE MAIN VARIABLES HCAHPS.Answer.Percent #
+HCAHPS.Answer.Percent_STA <-
+  spread(HCAHPS_State[, c("State", "HCAHPS.Measure.ID", "HCAHPS.Answer.Percent")],
+         HCAHPS.Measure.ID,
+         HCAHPS.Answer.Percent)
+
+colnames(HCAHPS.Answer.Percent_STA)[-1]<-paste(colnames(HCAHPS.Answer.Percent_STA)[-1],"_APE_STA",sep = "")
+
+# JOINING final_hcahps WITH HCAHPS.Answer.Percent #
+final_hcahps<-join_all(list(final_hcahps,HCAHPS.Answer.Percent_STA), by = "State")
+# HCAHPS STATE LEVEL CLEANING AND GROUPING #
+
+# HCAHPS NATIONAL LEVEL CLEANING AND GROUPING #
+HCAHPS_National <- read.csv("HCAHPS - National.csv",stringsAsFactors = FALSE)
+View(HCAHPS_National)
+
+# CHECKING FOR NA'S #
+nrow(HCAHPS_National[which(is.na(HCAHPS_National$HCAHPS.Answer.Percent)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(HCAHPS_National[which(HCAHPS_National$HCAHPS.Answer.Percent ==
+                             "Not Available"), ]) #0
+
+# CHECKING FOR DUPLICATES #
+nrow(HCAHPS_National)
+nrow(unique(HCAHPS_National))
+
+# TRANSPOSING THE MAIN VARIABLES HCAHPS.Answer.Percent #
+HCAHPS.Answer.Percent_NAT <-
+  spread(HCAHPS_National[, c("HCAHPS.Measure.ID", "HCAHPS.Answer.Percent")],
+         HCAHPS.Measure.ID,
+         HCAHPS.Answer.Percent)
+
+colnames(HCAHPS.Answer.Percent_NAT)[-1]<-paste(colnames(HCAHPS.Answer.Percent_NAT)[-1],"_APE_NAT",sep = "")
+
+# JOINING final_hcahps WITH HCAHPS.Answer.Percent #
+final_hcahps<-cbind(final_hcahps,HCAHPS.Answer.Percent_NAT)
+# HCAHPS NATIONAL LEVEL CLEANING AND GROUPING #
+
+# CHECKING FOR BLANK COLUMNS
+final_hcahps[final_hcahps==""]<-NA
+
+grep(nrow(final_hcahps),
+     sapply(final_hcahps, function(x)
+       sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+
+# CREATE VARIABLE PE i.e Patient Expetience #
+PE<-final_hcahps
+
+# WRITE FILE Patient Experience #
+write.csv(PE,file = "Patient Experience.csv")
+
+#-----------------------PATIENT EXPERIENCE END------------------------------------#
+
+#-----------------------Timely and Effective Care START------------------------------------#
+
+# TEC HOSPITAL LEVEL CLEANING AND GROUPING #
+# READ TEC_Hospital #
+TEC_Hospital <- read.csv("Timely and Effective Care - Hospital.csv",stringsAsFactors = FALSE)
+View(TEC_Hospital)
+
+TEC_MEI_MES <- TEC_Hospital[, c(10, 11)]
+
+time_measure_id_1 <- unique(TEC_MEI_MES[which(
+  TEC_MEI_MES$Measure.Name %in% grep(
+    "time",
+    TEC_MEI_MES[, 2],
+    ignore.case = TRUE,
+    value = TRUE
+  )
+), 1])
+
+time_measure_id_2 <- unique(TEC_MEI_MES[which(
+  TEC_MEI_MES$Measure.Name %in% grep(
+    "hour",
+    TEC_MEI_MES[, 2],
+    ignore.case = TRUE,
+    value = TRUE
+  )
+), 1])
+
+time_measure_id <- union(time_measure_id_1,time_measure_id_2)
+remove(time_measure_id_1)
+remove(time_measure_id_2)
+View(time_measure_id)
+
+# CHECKING FOR NA'S #
+nrow(TEC_Hospital[which(is.na(TEC_Hospital$Score)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(TEC_Hospital[which(TEC_Hospital$Score ==
+                          "Not Available"), ]) #129024
+
+# CHANGING "Not Available" TO NA #
+TEC_Hospital[which(TEC_Hospital$Score ==
+                     "Not Available"), "Score"]<- NA
+
+# CHECKING FOR DUPLICATES #
+nrow(TEC_Hospital)
+nrow(unique(TEC_Hospital))
+
+# TRANSPOSING THE MAIN VARIABLES Score #
+Score <-
+  spread(TEC_Hospital[, c("Provider.ID", "Measure.ID", "Score")],
+         Measure.ID,
+         Score)
+
+colnames(Score)[-1]<-paste(colnames(Score)[-1],"_SCO",sep = "")
+
+# GETTING THE UNIQUE DATA RELATED TO HOSPITALS #
+hospital_data<-unique(TEC_Hospital[,c(1,2,3,4,5,6,7,8)])
+
+# JOINING hospital_data WITH Compared.to.National, Denominator AND Score #
+final_tec <-
+  join_all(list(hospital_data, Score), by = "Provider.ID")
+
+blanks_columns <- grep(nrow(final_tec),
+                       sapply(final_tec, function(x)
+                         sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+
+# SEPERATING TIMELINESS AND EFFECTIVENESS #
+timeliness <- final_tec[, c(paste(time_measure_id, "_SCO", sep = ""))]
+timeliness <- cbind(final_tec[,c(1:8)],timeliness)
+# TEC HOSPITAL LEVEL CLEANING AND GROUPING #
+
+effectiveness <- final_tec[, !(colnames(final_tec) %in% c(paste(time_measure_id, "_SCO", sep = "")))]
+
+# TEC STATE LEVEL CLEANING AND GROUPING #
+TEC_State <- read.csv("Timely and Effective Care - State.csv",stringsAsFactors = FALSE)
+
+# CHECKING FOR NA'S #
+nrow(TEC_State[which(is.na(TEC_State$Score)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(TEC_State[which(TEC_State$Score ==
+                          "Not Available"), ]) #289
+
+# CHANGING "Not Available" TO NA #
+TEC_State[which(TEC_State$Score ==
+                     "Not Available"), "Score"]<- NA
+
+# CHECKING FOR DUPLICATES #
+nrow(TEC_State)
+nrow(unique(TEC_State))
+
+# TRANSPOSING THE MAIN VARIABLES Score #
+Score_STA <-
+  spread(TEC_State[, c("State", "Measure.ID", "Score")],
+         Measure.ID,
+         Score)
+
+colnames(Score_STA)[-1]<-paste(colnames(Score_STA)[-1],"_SCO_STA",sep = "")
+
+# JOINING hospital_data WITH Compared.to.National, Denominator AND Score #
+final_tec <-
+  join_all(list(final_tec, Score_STA), by = "State")
+
+blanks_columns <- grep(nrow(final_tec),
+                       sapply(final_tec, function(x)
+                         sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+
+# SEPERATING TIMELINESS AND EFFECTIVENESS #
+timeliness_sta <- final_tec[, (colnames(final_tec) %in% c(paste(time_measure_id, "_SCO_STA", sep = "")))]
+timeliness <- cbind(final_tec[,c(1:15)],timeliness_sta)
+
+effectiveness <- final_tec[, !(colnames(final_tec) %in% c(paste(time_measure_id, "_SCO_STA", sep = "")))]
+# TEC STATE LEVEL CLEANING AND GROUPING #
+
+# TEC NATIONAL LEVEL CLEANING AND GROUPING #
+TEC_National <- read.csv("Timely and Effective Care - National.csv",stringsAsFactors = FALSE)
+
+# CHECKING FOR NA'S #
+nrow(TEC_National[which(is.na(TEC_National$Score)),]) #0
+
+# CHECKING FOR "Not Available" #
+nrow(TEC_National[which(TEC_National$Score ==
+                          "Not Available"), ]) #0
+
+# CHECKING FOR DUPLICATES #
+nrow(TEC_National)
+nrow(unique(TEC_National))
+
+# TRANSPOSING THE MAIN VARIABLES Score #
+Score_NAT <-
+  spread(TEC_National[, c("Measure.ID", "Score")],
+         Measure.ID,
+         Score)
+
+colnames(Score_NAT)[-1]<-paste(colnames(Score_NAT)[-1],"_SCO_NAT",sep = "")
+
+# JOINING hospital_data WITH Score #
+final_tec <-
+  cbind(final_tec, Score_NAT)
+
+blanks_columns <- grep(nrow(final_tec),
+                       sapply(final_tec, function(x)
+                         sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
+
+# SEPERATING TIMELINESS AND EFFECTIVENESS #
+timeliness_nat <- final_tec[, (colnames(final_tec) %in% c(paste(time_measure_id, "_SCO_NAT", sep = "")))]
+timeliness <- cbind(final_tec[,c(1:22)],timeliness_nat)
+
+effectiveness <- final_tec[, !(colnames(final_tec) %in% c(paste(time_measure_id, "_SCO_NAT", sep = "")))]
+# TEC NATIONAL LEVEL CLEANING AND GROUPING #
+
+# WRITE FILE Timeliness Of Care #
+write.csv(timeliness,file = "Timeliness Of Care.csv")
+write.csv(effectiveness,file = "Effectiveness Of Care.csv")
+
+#-----------------------Timely and Effective Care END------------------------------------#
