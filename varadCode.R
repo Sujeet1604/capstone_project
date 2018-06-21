@@ -813,9 +813,9 @@ blanks_columns <- grep(nrow(final_tec),
 # SEPERATING TIMELINESS AND EFFECTIVENESS #
 timeliness <- final_tec[, c(paste(time_measure_id, "_SCO", sep = ""))]
 timeliness <- cbind(final_tec[,c(1:8)],timeliness)
-# TEC HOSPITAL LEVEL CLEANING AND GROUPING #
 
 effectiveness <- final_tec[, !(colnames(final_tec) %in% c(paste(time_measure_id, "_SCO", sep = "")))]
+# TEC HOSPITAL LEVEL CLEANING AND GROUPING #
 
 # TEC STATE LEVEL CLEANING AND GROUPING #
 TEC_State <- read.csv("Timely and Effective Care - State.csv",stringsAsFactors = FALSE)
