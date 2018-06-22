@@ -181,13 +181,13 @@ write.csv(b.readmission,"Readmission.csv")
 write.csv(c.safety,"Safety.csv")
 write.csv(d.patientexp,"PatientExp.csv")
 write.csv(e.effectiveness,"Effectiveness.csv")
-write.csv(f.timeliness,"Mortality.csv")
-write.csv(g.effimaging,"Mortality.csv")
+write.csv(f.timeliness,"Timeliness.csv")
+write.csv(g.effimaging,"EffImaging.csv")
 ## CREATING SEPERATE FILE FOR EACH GROUP ##
 
 ##______GROUPING OF DATA IS COMPLETED______________##
 
-##______NOW WE START WITH DATA SCALING AND OUTLIER TREATMENT______##
+##______NOW WE START WITH DATA CLEANING, SCALING AND OUTLIER TREATMENT______##
 
 final_chs_data[final_chs_data == "Not Available"] <- NA
 final_chs_data <-
@@ -262,19 +262,24 @@ trial[trial < -3] <- -3
 final_chs_data <- cbind(final_chs_data[, 1], trial)
 colnames(final_chs_data)[1]<-"Provider.ID"
 
+## CLEANING FINISHES ##
+
 ## READING THE HOSPITAL GENERAL INFORMATION FILE ##
 HGI_Hosp <-
   read.csv("Hospital General Information.csv",
            stringsAsFactors = FALSE)
 
 ## ADDING THE RATING VARIABLE TO THE final_chs_data ##
-final_chs_data$Hospital.overall.rating <-
-  as.numeric(as.character(HGI_Hosp$Hospital.overall.rating))
+final_chs_data <-
+  merge(final_chs_data, HGI_Hosp[, c(1, 13)], by = "Provider.ID")
+final_chs_data$Hospital.overall.rating<-as.numeric(as.character(final_chs_data$Hospital.overall.rating))
 
 ## CONVERTING RATING TO FACTOR ##
 final_chs_data$Hospital.overall.rating <-
   as.factor(final_chs_data$Hospital.overall.rating)
+##______DATA CLEANING, SCALING AND OUTLIER TREATMENT COMPLETED______##
 
+## STARTING RANDOM FOREST MODELLING ##
 rf_data<-final_chs_data[,-1]
 
 ## REMOVING COLUMNS WHERE THERE IS EXCESS NA WE ARE TAKING 60:40 RATIO ##
@@ -285,8 +290,8 @@ rf_data<-rf_data[,sapply(rf_data, function(x) (sum(is.na(x))/length(x))*100)<40]
 na_treatment<-function(a){
   a[is.na(a)]<-median(a,na.rm = TRUE)
   return(a)
-  
 }
+
 rf_data[,-ncol(rf_data)]<-as.data.frame(sapply(rf_data[,-ncol(rf_data)], function(x) na_treatment(x)))
 
 ## CREATING TRAIN AND TEST DATA SET
@@ -308,6 +313,7 @@ rf_pred <- predict(rf, test[, -ncol(rf_data)])
 table(rf_pred, test[, ncol(rf_data)])
 confusionMatrix(rf_pred, test[, ncol(rf_data)])
 
+# tuneRF(train,predictedcolumn,ntree=500)
 # Overall Statistics
 # 
 # Accuracy : 0.6618          
