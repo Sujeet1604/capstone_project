@@ -1,3 +1,8 @@
+library(tidyverse)
+library(plyr)
+library(stringr)
+library(DescTools)
+
 RDH <-
   read.csv("Readmissions and Deaths - Hospital.csv", stringsAsFactors = FALSE)
 
@@ -163,9 +168,79 @@ final_chs_data <- join_all(
   ),
   by = "Provider.ID"
 )
+##______GROUPING OF DATA IS COMPLETED______________##
+
+##______NOW WE START WITH DATA SCALING AND OUTLIER TREATMENT______##
 
 final_chs_data[final_chs_data == "Not Available"] <- NA
 final_chs_data <-
   as.data.frame(sapply(final_chs_data, function(x)
     as.numeric(as.character(x))))
 
+# a.mortality LOWER THE SCORE - BETTER THE RESULT,
+# b.readmission LOWER THE SCORE - BETTER THE RESULT,
+# c.safety LOWER THE SCORE - BETTER THE RESULT,
+# d.patientexp HIGHER THE SCORE - BETTER THE RESULT,
+# e.effictivness MIX VARIABLES ARE PRESENT,
+# f.timeliness LOWER THE SCORE - BETTER THE RESULT,
+# g.effimaging LOWER THE SCORE - BETTER THE RESULT
+
+mortality_var<-colnames(a.mortality[,-1])
+readmission_var<-colnames(b.readmission[,-1])
+safety_var<-colnames(c.safety[,-1])
+patientexp_var<-colnames(d.patientexp[,-1])
+effictivness_var<-colnames(e.effictivness[,-1])
+timeliness_var<-colnames(f.timeliness[,-1])
+effimaging_var<-colnames(g.effimaging[,-1])
+
+## ACCORDING TO CHS METHODOLOGY ##
+inverse_scale<-function(a){
+  inv_scale<-(mean(a,na.rm = TRUE)-a)/sd(a,na.rm = TRUE)
+}  
+
+inv_scale_var<-union_all(mortality_var,readmission_var,safety_var,timeliness_var,effimaging_var)
+scale_var<-patientexp_var
+
+TEC_National <-
+  read.csv("Timely and Effective Care - National.csv", stringsAsFactors = FALSE)
+
+temp_1 <-
+  unique(TEC_National[which(TEC_National$Measure.ID %in% effictivness_var), c(1, 2)])
+
+effictiveness_higher <- temp_1[which(
+  temp_1$Measure.Name %in%
+    grep(
+      "higher",
+      temp_1$Measure.Name,
+      ignore.case = TRUE,
+      value = TRUE
+    )
+), 2]
+effictiveness_lower <- temp_1[which(
+  temp_1$Measure.Name %in%
+    grep(
+      "lower",
+      temp_1$Measure.Name,
+      ignore.case = TRUE,
+      value = TRUE
+    )
+), 2]
+
+effictiveness_higher <-
+  union_all(effictiveness_higher, c("OP_29", "OP_30"))
+effictiveness_lower <-
+  effictiveness_lower[!(effictiveness_lower == "STK_6")]
+
+scale_var <- union_all(scale_var, effictiveness_higher)
+inv_scale_var <- union_all(inv_scale_var, effictiveness_lower)
+
+final_chs_data[,scale_var]<-scale(final_chs_data[,scale_var])
+final_chs_data[,inv_scale_var]<-sapply(final_chs_data[,inv_scale_var],inverse_scale)
+
+## FURTHER AS MENTIONED WE NEED TO LIMIT THE OUTLIER TO +3 TO -3 ##
+trial<-final_chs_data[,-1]
+trial[trial > 3] <- 3
+trial[trial < -3] <- -3
+
+final_chs_data <- cbind(final_chs_data[, 1], trial)
+colnames(final_chs_data)[1]<-"Provider.ID"
