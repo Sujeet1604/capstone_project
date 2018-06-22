@@ -2,6 +2,12 @@ library(tidyverse)
 library(plyr)
 library(stringr)
 library(DescTools)
+library(rpart)
+library(randomForest)
+library(rpart.plot)
+library(caret)
+library(kernlab)
+library(doParallel)
 
 RDH <-
   read.csv("Readmissions and Deaths - Hospital.csv", stringsAsFactors = FALSE)
@@ -207,7 +213,7 @@ TEC_National <-
 temp_1 <-
   unique(TEC_National[which(TEC_National$Measure.ID %in% effictivness_var), c(1, 2)])
 
-effictiveness_higher <- temp_1[which(
+effectiveness_higher <- temp_1[which(
   temp_1$Measure.Name %in%
     grep(
       "higher",
@@ -216,7 +222,7 @@ effictiveness_higher <- temp_1[which(
       value = TRUE
     )
 ), 2]
-effictiveness_lower <- temp_1[which(
+effectiveness_lower <- temp_1[which(
   temp_1$Measure.Name %in%
     grep(
       "lower",
@@ -226,13 +232,13 @@ effictiveness_lower <- temp_1[which(
     )
 ), 2]
 
-effictiveness_higher <-
-  union_all(effictiveness_higher, c("OP_29", "OP_30"))
-effictiveness_lower <-
-  effictiveness_lower[!(effictiveness_lower == "STK_6")]
+effectiveness_higher <-
+  union_all(effectiveness_higher, c("OP_29", "OP_30"))
+effectiveness_lower <-
+  effectiveness_lower[!(effectiveness_lower == "STK_6")]
 
-scale_var <- union_all(scale_var, effictiveness_higher)
-inv_scale_var <- union_all(inv_scale_var, effictiveness_lower)
+scale_var <- union_all(scale_var, effectiveness_higher)
+inv_scale_var <- union_all(inv_scale_var, effectiveness_lower)
 
 final_chs_data[,scale_var]<-scale(final_chs_data[,scale_var])
 final_chs_data[,inv_scale_var]<-sapply(final_chs_data[,inv_scale_var],inverse_scale)
@@ -244,3 +250,140 @@ trial[trial < -3] <- -3
 
 final_chs_data <- cbind(final_chs_data[, 1], trial)
 colnames(final_chs_data)[1]<-"Provider.ID"
+
+## READING THE HOSPITAL GENERAL INFORMATION FILE ##
+HGI_Hosp <-
+  read.csv("Hospital General Information.csv",
+           stringsAsFactors = FALSE)
+
+## ADDING THE RATING VARIABLE TO THE final_chs_data ##
+final_chs_data$Hospital.overall.rating <-
+  as.numeric(as.character(HGI_Hosp$Hospital.overall.rating))
+
+## CONVERTING RATING TO FACTOR ##
+final_chs_data$Hospital.overall.rating <-
+  as.factor(final_chs_data$Hospital.overall.rating)
+
+rf_data<-final_chs_data[,-1]
+
+## REMOVING COLUMNS WHERE THERE IS EXCESS NA WE ARE TAKING 60:40 RATIO ##
+## WE ARE ONLY TAKING COLUMNS WHERE VALUE OF NA IS LESS THAN 40 PERCENT ##
+rf_data<-rf_data[,sapply(rf_data, function(x) (sum(is.na(x))/length(x))*100)<40]
+
+## NOW WE WILL REPLACE NA WITH MEDIAN VALUES ##
+na_treatment<-function(a){
+  a[is.na(a)]<-median(a,na.rm = TRUE)
+  return(a)
+  
+}
+rf_data[,-ncol(rf_data)]<-as.data.frame(sapply(rf_data[,-ncol(rf_data)], function(x) na_treatment(x)))
+
+## CREATING TRAIN AND TEST DATA SET
+indices <- sample(1:nrow(rf_data), size = 0.7 * nrow(rf_data))
+train<-rf_data[indices,]
+test<-rf_data[-indices,]
+
+## RANDOM FOREST WITH 1000 TREES ##
+rf <-
+  randomForest(
+    Hospital.overall.rating ~ .,
+    data = train,
+    mtry = 24,
+    na.action = na.omit,
+    ntree = 1000
+  )
+
+rf_pred <- predict(rf, test[, -ncol(rf_data)])
+table(rf_pred, test[, ncol(rf_data)])
+confusionMatrix(rf_pred, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.6618          
+# 95% CI : (0.6328, 0.6899)
+# No Information Rate : 0.4908          
+# P-Value [Acc > NIR] : < 2.2e-16       
+# 
+# Kappa : 0.4466          
+# Mcnemar's Test P-Value : NA    
+
+## TRAINING RANDOM FOREST MODEL ##
+trainControl <- trainControl(method="repeatedcv", number=10, repeats=3)
+metric <- "Accuracy"
+set.seed(100)
+mtry <- sqrt(ncol(train))
+grid <- expand.grid(.mtry=mtry)
+fit.rf <- train(Hospital.overall.rating~., data=train, method="rf", metric=metric, 
+                tuneGrid=grid, trControl=trainControl,na.action=na.omit)
+rf_pred_cv<- predict(fit.rf, test)
+confusionMatrix(rf_pred_cv, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.6434          
+# 95% CI : (0.6141, 0.6719)
+# No Information Rate : 0.4908          
+# P-Value [Acc > NIR] : < 2.2e-16       
+# 
+# Kappa : 0.4045          
+# Mcnemar's Test P-Value : NA
+
+##  TRAINING ON RPART ##
+tree <- rpart(Hospital.overall.rating ~., data=train, na.action=na.omit, 
+              control = rpart.control(minsplit=10, cp=0.01))
+tree_pred <-  predict(tree, test[, -ncol(rf_data)], type = "class")
+table(tree_pred, test[, ncol(rf_data)])
+confusionMatrix(tree_pred, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.5643          
+# 95% CI : (0.5343, 0.5941)
+# No Information Rate : 0.4908          
+# P-Value [Acc > NIR] : 6.989e-07       
+# 
+# Kappa : 0.2716          
+# Mcnemar's Test P-Value : NA 
+
+## TRAINING ON SVM ##
+trainControl <- trainControl(method="cv", number=5)
+metric <- "Accuracy"
+set.seed(100)
+grid <- expand.grid(C=seq(1, 5, by=1))
+fit.svm <- train(Hospital.overall.rating~., data=train, method="svmLinear", metric=metric, 
+                 tuneGrid=grid, trControl=trainControl,na.action=na.omit)
+svm_pred_cv<- predict(fit.svm, test)
+confusionMatrix(svm_pred_cv, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.6783         
+# 95% CI : (0.6496, 0.706)
+# No Information Rate : 0.4908         
+# P-Value [Acc > NIR] : < 2.2e-16      
+# 
+# Kappa : 0.4841 
+
+## TRAINING ON KNN ##
+knnmodel <-  train(Hospital.overall.rating~., 
+                   data = train,
+                   method = "knn", 
+                   preProcess = c("center", "scale"),
+                   tuneLength = 10,
+                   trControl = trainControl(method = "cv"),
+                   na.action=na.omit)
+
+knn_pred_cv<- predict(knnmodel, test)
+confusionMatrix(knn_pred_cv, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.5873          
+# 95% CI : (0.5574, 0.6168)
+# No Information Rate : 0.4908          
+# P-Value [Acc > NIR] : 1.082e-10       
+# 
+# Kappa : 0.3127          
+# Mcnemar's Test P-Value : NA 
+
+## THUS WE CAN SEE THAT SVM AND RANDOM FOREST PROVIDE THE BEST ACCURACY POSSIBLE ##
