@@ -313,15 +313,14 @@ rf_pred <- predict(rf, test[, -ncol(rf_data)])
 table(rf_pred, test[, ncol(rf_data)])
 confusionMatrix(rf_pred, test[, ncol(rf_data)])
 
-# tuneRF(train,predictedcolumn,ntree=500)
 # Overall Statistics
 # 
-# Accuracy : 0.6618          
-# 95% CI : (0.6328, 0.6899)
-# No Information Rate : 0.4908          
+# Accuracy : 0.8083          
+# 95% CI : (0.7839, 0.8311)
+# No Information Rate : 0.4919          
 # P-Value [Acc > NIR] : < 2.2e-16       
 # 
-# Kappa : 0.4466          
+# Kappa : 0.6984          
 # Mcnemar's Test P-Value : NA    
 
 ## TRAINING RANDOM FOREST MODEL ##
