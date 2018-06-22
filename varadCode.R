@@ -147,7 +147,7 @@ d.patientexp <-
          HCAHPS.Measure.ID,
          Patient.Survey.Star.Rating)
 
-e.effictivness <-
+e.effectiveness <-
   spread(EOC_Hosp[, c("Provider.ID", "Measure.ID", "Score")],
          Measure.ID,
          Score)
@@ -168,12 +168,23 @@ final_chs_data <- join_all(
     b.readmission,
     c.safety,
     d.patientexp,
-    e.effictivness,
+    e.effectiveness,
     f.timeliness,
     g.effimaging
   ),
   by = "Provider.ID"
 )
+
+## CREATING SEPERATE FILE FOR EACH GROUP ##
+write.csv(a.mortality,"Mortality.csv")
+write.csv(b.readmission,"Readmission.csv")
+write.csv(c.safety,"Safety.csv")
+write.csv(d.patientexp,"PatientExp.csv")
+write.csv(e.effectiveness,"Effectiveness.csv")
+write.csv(f.timeliness,"Mortality.csv")
+write.csv(g.effimaging,"Mortality.csv")
+## CREATING SEPERATE FILE FOR EACH GROUP ##
+
 ##______GROUPING OF DATA IS COMPLETED______________##
 
 ##______NOW WE START WITH DATA SCALING AND OUTLIER TREATMENT______##
@@ -187,7 +198,7 @@ final_chs_data <-
 # b.readmission LOWER THE SCORE - BETTER THE RESULT,
 # c.safety LOWER THE SCORE - BETTER THE RESULT,
 # d.patientexp HIGHER THE SCORE - BETTER THE RESULT,
-# e.effictivness MIX VARIABLES ARE PRESENT,
+# e.effectiveness MIX VARIABLES ARE PRESENT,
 # f.timeliness LOWER THE SCORE - BETTER THE RESULT,
 # g.effimaging LOWER THE SCORE - BETTER THE RESULT
 
@@ -195,7 +206,7 @@ mortality_var<-colnames(a.mortality[,-1])
 readmission_var<-colnames(b.readmission[,-1])
 safety_var<-colnames(c.safety[,-1])
 patientexp_var<-colnames(d.patientexp[,-1])
-effictivness_var<-colnames(e.effictivness[,-1])
+effectiveness_var<-colnames(e.effectiveness[,-1])
 timeliness_var<-colnames(f.timeliness[,-1])
 effimaging_var<-colnames(g.effimaging[,-1])
 
@@ -211,7 +222,7 @@ TEC_National <-
   read.csv("Timely and Effective Care - National.csv", stringsAsFactors = FALSE)
 
 temp_1 <-
-  unique(TEC_National[which(TEC_National$Measure.ID %in% effictivness_var), c(1, 2)])
+  unique(TEC_National[which(TEC_National$Measure.ID %in% effectiveness_var), c(1, 2)])
 
 effectiveness_higher <- temp_1[which(
   temp_1$Measure.Name %in%
@@ -387,3 +398,6 @@ confusionMatrix(knn_pred_cv, test[, ncol(rf_data)])
 # Mcnemar's Test P-Value : NA 
 
 ## THUS WE CAN SEE THAT SVM AND RANDOM FOREST PROVIDE THE BEST ACCURACY POSSIBLE ##
+
+## EDA ANALYSIS ##
+
