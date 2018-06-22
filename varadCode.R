@@ -336,12 +336,12 @@ confusionMatrix(rf_pred_cv, test[, ncol(rf_data)])
 
 # Overall Statistics
 # 
-# Accuracy : 0.6434          
-# 95% CI : (0.6141, 0.6719)
-# No Information Rate : 0.4908          
+# Accuracy : 0.7857          
+# 95% CI : (0.7603, 0.8096)
+# No Information Rate : 0.4919          
 # P-Value [Acc > NIR] : < 2.2e-16       
 # 
-# Kappa : 0.4045          
+# Kappa : 0.6569          
 # Mcnemar's Test P-Value : NA
 
 ##  TRAINING ON RPART ##
@@ -353,13 +353,13 @@ confusionMatrix(tree_pred, test[, ncol(rf_data)])
 
 # Overall Statistics
 # 
-# Accuracy : 0.5643          
-# 95% CI : (0.5343, 0.5941)
-# No Information Rate : 0.4908          
-# P-Value [Acc > NIR] : 6.989e-07       
+# Accuracy : 0.6483          
+# 95% CI : (0.6193, 0.6764)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
 # 
-# Kappa : 0.2716          
-# Mcnemar's Test P-Value : NA 
+# Kappa : 0.4414          
+# Mcnemar's Test P-Value : NA  
 
 ## TRAINING ON SVM ##
 trainControl <- trainControl(method="cv", number=5)
@@ -373,12 +373,13 @@ confusionMatrix(svm_pred_cv, test[, ncol(rf_data)])
 
 # Overall Statistics
 # 
-# Accuracy : 0.6783         
-# 95% CI : (0.6496, 0.706)
-# No Information Rate : 0.4908         
-# P-Value [Acc > NIR] : < 2.2e-16      
+# Accuracy : 0.877           
+# 95% CI : (0.8562, 0.8958)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
 # 
-# Kappa : 0.4841 
+# Kappa : 0.812           
+# Mcnemar's Test P-Value : NA  
 
 ## TRAINING ON KNN ##
 knnmodel <-  train(Hospital.overall.rating~., 
@@ -394,12 +395,12 @@ confusionMatrix(knn_pred_cv, test[, ncol(rf_data)])
 
 # Overall Statistics
 # 
-# Accuracy : 0.5873          
-# 95% CI : (0.5574, 0.6168)
-# No Information Rate : 0.4908          
-# P-Value [Acc > NIR] : 1.082e-10       
+# Accuracy : 0.6998          
+# 95% CI : (0.6718, 0.7267)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
 # 
-# Kappa : 0.3127          
+# Kappa : 0.5132          
 # Mcnemar's Test P-Value : NA 
 
 ## THUS WE CAN SEE THAT SVM AND RANDOM FOREST PROVIDE THE BEST ACCURACY POSSIBLE ##
