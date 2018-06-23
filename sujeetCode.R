@@ -131,3 +131,50 @@ colnames(Hospital_Quaterly_Quality)
 
 
 
+
+###############################################Hospital_Quaterly_MSPB###########################################################
+
+summary(Hospital_Quaterly_MSPB)
+
+## Start Date and End Date is irrelevent for analysis as duration is 1 year for all
+## Footnotes are again irrelevent 
+
+
+Hospital_Quaterly_MSPB <- Hospital_Quaterly_MSPB[,1:3]
+
+#Converting Measure_Id to factor 
+
+Hospital_Quaterly_MSPB$Measure_ID<- as.factor(Hospital_Quaterly_MSPB$Measure_ID)
+
+summary(Hospital_Quaterly_MSPB$Measure_ID)
+
+## As we have ony one value throughout the dataset, we can omit variable "Measure_ID" out of the context
+
+Hospital_Quaterly_MSPB<- Hospital_Quaterly_MSPB[,c(1,3)]
+
+## Checking the existence of NA values
+
+sapply(Hospital_Quaterly_MSPB, function(x) sum(is.na(x)))
+
+## No null values so Hospital_Quaterly_MSPB is now good to merge
+
+
+
+###############################################Value_Of_Care_National###########################################################
+
+
+summary(Value_Of_Care_National)
+
+## Start Date and End Date is irrelevent for analysis as duration is 6 months for all
+
+Value_Of_Care_National<- Value_Of_Care_National[,1:3]
+
+## Let's make Value.of.care.measure.name & Value.of.care.measure.ID as facrors
+
+Value_Of_Care_National$Value.of.care.measure.name<- as.factor(Value_Of_Care_National$Value.of.care.measure.name)
+
+Value_Of_Care_National$Value.of.care.measure.ID<- as.factor(Value_Of_Care_National$Value.of.care.measure.ID)
+
+summary(Value_Of_Care_National)
+
+## It seems, This dataset is a consolidated reference
