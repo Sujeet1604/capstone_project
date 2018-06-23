@@ -274,6 +274,10 @@ final_chs_data <-
   merge(final_chs_data, HGI_Hosp[, c(1, 13)], by = "Provider.ID")
 final_chs_data$Hospital.overall.rating<-as.numeric(as.character(final_chs_data$Hospital.overall.rating))
 
+
+
+
+
 ## CONVERTING RATING TO FACTOR ##
 final_chs_data$Hospital.overall.rating <-
   as.factor(final_chs_data$Hospital.overall.rating)
@@ -406,4 +410,387 @@ confusionMatrix(knn_pred_cv, test[, ncol(rf_data)])
 ## THUS WE CAN SEE THAT SVM AND RANDOM FOREST PROVIDE THE BEST ACCURACY POSSIBLE ##
 
 ## EDA ANALYSIS ##
+
+
+
+
+
+
+################### Analysis #################################
+
+
+### Multiplot function
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+    
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+############### 1. overall rating analysis###########################
+final_chs_data_analyze<- final_chs_data
+
+final_chs_data_analyze$Hospital.overall.rating<- as.character(final_chs_data_analyze$Hospital.overall.rating)
+
+
+final_chs_data_ratings <- final_chs_data_analyze[which(!is.na(final_chs_data_analyze$Hospital.overall.rating)),] %>%
+  group_by(Hospital.overall.rating) %>%
+  tally
+
+colnames(final_chs_data_ratings) <- c("Hospital.overall.rating","total") 
+
+head(final_chs_data_ratings)
+
+ggplot(final_chs_data_ratings, aes(x = Hospital.overall.rating,y=total)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#3caed2")+
+  geom_text(data=final_chs_data_ratings,aes(x=Hospital.overall.rating,y=total,label=total),angle = 90,hjust=1, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "Ratings", y="Total Count")+
+  ggtitle("Overall Ratings")
+
+############### 2. analysis on mortality measures###########################
+
+Mortality_Hosp_analyze<- a.mortality
+
+Mortality_Hosp_analyze[ Mortality_Hosp_analyze == "Not Available" ] <- NA
+
+Mortality_Hosp_count<- sapply(Mortality_Hosp_analyze, function(y) sum(length(which(!is.na(y)))))
+Mortality_Hosp_count <- data.frame(Mortality_Hosp_count)
+Mortality_Hosp_count$Measure_Id<-rownames(Mortality_Hosp_count)
+Mortality_Hosp_count<-Mortality_Hosp_count[-1,]
+
+Mortality_Hosp_Per<- sapply(Mortality_Hosp_analyze, function(y) paste(round((sum(length(which(!is.na(y))))/nrow(Mortality_Hosp_analyze)*100),digit=2),"%",sep=""))
+Mortality_Hosp_Per<-data.frame(Mortality_Hosp_Per)
+Mortality_Hosp_Per$Measure_Id<-rownames(Mortality_Hosp_Per)
+Mortality_Hosp_Per<-Mortality_Hosp_Per[-1,]
+
+summ_Mortality_Hosp<- merge(Mortality_Hosp_count,Mortality_Hosp_Per,by="Measure_Id")
+
+ggplot(summ_Mortality_Hosp, aes(x = Measure_Id,y=Mortality_Hosp_count)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#e896e6")+
+  geom_text(data=summ_Mortality_Hosp,aes(x=Measure_Id,y=Mortality_Hosp_count,label=Mortality_Hosp_count),angle = 90,hjust=2, vjust=0)+
+  geom_text(data=summ_Mortality_Hosp,aes(x=Measure_Id,y=Mortality_Hosp_count,label=Mortality_Hosp_Per),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "No of Mortality Measures Repoted", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by Number of Mortality Measures")
+
+
+############### 3. analysis on Safety of Care###########################
+
+Safety_analyze<- c.safety
+
+Safety_analyze[ Safety_analyze == "Not Available" ] <- NA
+
+Safety_count<- sapply(Safety_analyze, function(y) sum(length(which(!is.na(y)))))
+Safety_count <- data.frame(Safety_count)
+Safety_count$Measure_Id<-rownames(Safety_count)
+Safety_count<-Safety_count[-1,]
+
+Safety_Per<- sapply(Safety_analyze, function(y) paste(round((sum(length(which(!is.na(y))))/nrow(Safety_analyze)*100),digit=2),"%",sep=""))
+Safety_Per<-data.frame(Safety_Per)
+Safety_Per$Measure_Id<-rownames(Safety_Per)
+Safety_Per<-Safety_Per[-1,]
+
+summ_Safety<- merge(Safety_count,Safety_Per,by="Measure_Id")
+
+
+ggplot(summ_Safety, aes(x = Measure_Id,y=Safety_count)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed4e70")+
+  geom_text(data=summ_Safety,aes(x=Measure_Id,y=Safety_count,label=Safety_count),angle = 90,hjust=2, vjust=0)+
+  geom_text(data=summ_Safety,aes(x=Measure_Id,y=Safety_count,label=Safety_Per),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "No of Safety of Care Repoted", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by Number of Safety of Care Measures")
+
+
+
+############### 4. analysis on Readmissions###########################
+
+Readmissions_analyze<- b.readmission
+
+Readmissions_analyze[ Readmissions_analyze == "Not Available" ] <- NA
+
+Readmissions_count<- sapply(Readmissions_analyze, function(y) sum(length(which(!is.na(y)))))
+Readmissions_count <- data.frame(Readmissions_count)
+Readmissions_count$Measure_Id<-rownames(Readmissions_count)
+Readmissions_count<-Readmissions_count[-1,]
+
+Readmissions_Per<- sapply(Readmissions_analyze, function(y) paste(round((sum(length(which(!is.na(y))))/nrow(Safety_analyze)*100),digit=2),"%",sep=""))
+Readmissions_Per<-data.frame(Readmissions_Per)
+Readmissions_Per$Measure_Id<-rownames(Readmissions_Per)
+Readmissions_Per<-Readmissions_Per[-1,]
+
+summ_Readmissions<- merge(Readmissions_count,Readmissions_Per,by="Measure_Id")
+
+
+ggplot(summ_Readmissions, aes(x = Measure_Id,y=Readmissions_count)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=summ_Readmissions,aes(x=Measure_Id,y=Readmissions_count,label=Readmissions_count),angle = 90,hjust=2, vjust=0)+
+  geom_text(data=summ_Readmissions,aes(x=Measure_Id,y=Readmissions_count,label=Readmissions_Per),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "No of Readmissions Measures Repoted", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by Number of Readmission Measures")
+
+
+############### 5. analysis on Patient Experience###########################
+
+Patientexp_analyze<- d.patientexp
+
+Patientexp_analyze[ Patientexp_analyze == "Not Available" ] <- NA
+
+final_Patientexp_CLEAN_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_CLEAN_STAR_RATING)),] %>%
+  group_by(H_CLEAN_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_COMP_1_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_COMP_1_STAR_RATING)),] %>%
+  group_by(H_COMP_1_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_COMP_2_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_COMP_2_STAR_RATING)),] %>%
+  group_by(H_COMP_2_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_COMP_3_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_COMP_3_STAR_RATING)),] %>%
+  group_by(H_COMP_3_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_COMP_4_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_COMP_4_STAR_RATING)),] %>%
+  group_by(H_COMP_4_STAR_RATING) %>%
+  tally
+
+
+final_Patientexp_H_COMP_5_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_COMP_5_STAR_RATING)),] %>%
+  group_by(H_COMP_5_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_COMP_6_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_COMP_6_STAR_RATING)),] %>%
+  group_by(H_COMP_6_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_COMP_7_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_COMP_7_STAR_RATING)),] %>%
+  group_by(H_COMP_7_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_HSP_RATING_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_HSP_RATING_STAR_RATING)),] %>%
+  group_by(H_HSP_RATING_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_QUIET_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_QUIET_STAR_RATING)),] %>%
+  group_by(H_QUIET_STAR_RATING) %>%
+  tally
+
+final_Patientexp_H_RECMND_STAR <- Patientexp_analyze[which(!is.na(final_chs_data_analyze$H_RECMND_STAR_RATING)),] %>%
+  group_by(H_RECMND_STAR_RATING) %>%
+  tally
+
+
+
+plot_final_Patientexp_CLEAN_STAR<- ggplot(final_Patientexp_CLEAN_STAR, aes(x = as.character(H_CLEAN_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_CLEAN_STAR,aes(x=as.character(H_CLEAN_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "CLEAN_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by CLEAN_STAR_RATING")
+
+plot_final_Patientexp_H_COMP_1_STAR<- ggplot(final_Patientexp_H_COMP_1_STAR, aes(x = as.character(H_COMP_1_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_COMP_1_STAR,aes(x=as.character(H_COMP_1_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_COMP_1_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_COMP_1_STAR_RATING")
+
+plot_final_Patientexp_H_COMP_2_STAR<- ggplot(final_Patientexp_H_COMP_2_STAR, aes(x = as.character(H_COMP_2_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_COMP_2_STAR,aes(x=as.character(H_COMP_2_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_COMP_2_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_COMP_2_STAR_RATING")
+
+plot_final_Patientexp_H_COMP_3_STAR<- ggplot(final_Patientexp_H_COMP_3_STAR, aes(x = as.character(H_COMP_3_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_COMP_3_STAR,aes(x=as.character(H_COMP_3_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_COMP_3_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_COMP_3_STAR_RATING")
+
+plot_final_Patientexp_H_COMP_4_STAR<- ggplot(final_Patientexp_H_COMP_4_STAR, aes(x = as.character(H_COMP_4_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_COMP_4_STAR,aes(x=as.character(H_COMP_4_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_COMP_4_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_COMP_4_STAR_RATING")
+
+plot_final_Patientexp_H_COMP_5_STAR<- ggplot(final_Patientexp_H_COMP_5_STAR, aes(x = as.character(H_COMP_5_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_COMP_5_STAR,aes(x=as.character(H_COMP_5_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_COMP_5_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_COMP_5_STAR_RATING")
+
+plot_final_Patientexp_H_COMP_6_STAR<- ggplot(final_Patientexp_H_COMP_6_STAR, aes(x = as.character(H_COMP_6_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_COMP_6_STAR,aes(x=as.character(H_COMP_6_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_COMP_6_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_COMP_6_STAR_RATING")
+
+plot_final_Patientexp_H_COMP_7_STAR<- ggplot(final_Patientexp_H_COMP_7_STAR, aes(x = as.character(H_COMP_7_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_COMP_7_STAR,aes(x=as.character(H_COMP_7_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_COMP_7_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_COMP_7_STAR_RATING")
+
+plot_final_Patientexp_H_HSP_RATING_STAR<- ggplot(final_Patientexp_H_HSP_RATING_STAR, aes(x = as.character(H_HSP_RATING_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_HSP_RATING_STAR,aes(x=as.character(H_HSP_RATING_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "H_HSP_RATING_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by H_HSP_RATING_STAR_RATING")
+
+plot_final_Patientexp_H_QUIET_STAR<- ggplot(final_Patientexp_H_QUIET_STAR, aes(x = as.character(H_QUIET_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_QUIET_STAR,aes(x=as.character(H_QUIET_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "QUIET_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by QUIET_STAR_RATING")
+
+plot_final_Patientexp_H_RECMND_STAR<- ggplot(final_Patientexp_H_RECMND_STAR, aes(x = as.character(H_RECMND_STAR_RATING),y=n)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ed854d")+
+  geom_text(data=final_Patientexp_H_RECMND_STAR,aes(x=as.character(H_RECMND_STAR_RATING),y=n,label=n),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "RECMND_STAR_RATING", y="Hospital Counts")+
+  ggtitle("Count of Hospitals by RECMND_STAR_RATING")
+
+
+multiplot(plot_final_Patientexp_CLEAN_STAR,plot_final_Patientexp_H_COMP_1_STAR,
+          plot_final_Patientexp_H_COMP_2_STAR,plot_final_Patientexp_H_COMP_3_STAR,
+          plot_final_Patientexp_H_COMP_4_STAR,plot_final_Patientexp_H_COMP_5_STAR,
+          plot_final_Patientexp_H_COMP_6_STAR,plot_final_Patientexp_H_COMP_7_STAR,
+          plot_final_Patientexp_H_HSP_RATING_STAR,plot_final_Patientexp_H_QUIET_STAR,
+          plot_final_Patientexp_H_RECMND_STAR, cols=3)
+
+
+
+############### 6. Effectiveness of Care###########################
+
+Effectiveness_analyze<- e.effectiveness
+
+Effectiveness_analyze[ Effectiveness_analyze == "Not Available" ] <- NA
+
+Effectiveness_count<- sapply(Effectiveness_analyze, function(y) sum(length(which(!is.na(y)))))
+Effectiveness_count <- data.frame(Effectiveness_count)
+Effectiveness_count$Measure_Id<-rownames(Effectiveness_count)
+Effectiveness_count<-Effectiveness_count[-1,]
+
+Effectiveness_Per<- sapply(Effectiveness_analyze, function(y) paste(round((sum(length(which(!is.na(y))))/nrow(Safety_analyze)*100),digit=2),"%",sep=""))
+Effectiveness_Per<-data.frame(Effectiveness_Per)
+Effectiveness_Per$Measure_Id<-rownames(Effectiveness_Per)
+Effectiveness_Per<-Effectiveness_Per[-1,]
+
+summ_Effectiveness<- merge(Effectiveness_count,Effectiveness_Per,by="Measure_Id")
+
+
+ggplot(summ_Effectiveness, aes(x = Measure_Id,y=Effectiveness_count)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#92ed4d")+
+  geom_text(data=summ_Effectiveness,aes(x=Measure_Id,y=Effectiveness_count,label=Effectiveness_count),angle = 90,hjust=1, vjust=0)+
+  geom_text(data=summ_Effectiveness,aes(x=Measure_Id,y=Effectiveness_count,label=Effectiveness_Per),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "No of Effectiveness of Care Measures Repoted", y="Hospital Counts")+
+  ggtitle("Count of Hospitals By Number of Effectiveness of Care Measures")
+
+
+
+############### 7. Timeliness of Care###########################
+
+Timeliness_analyze<- f.timeliness
+
+Timeliness_analyze[ Timeliness_analyze == "Not Available" ] <- NA
+
+Timeliness_count<- sapply(Timeliness_analyze, function(y) sum(length(which(!is.na(y)))))
+Timeliness_count <- data.frame(Timeliness_count)
+Timeliness_count$Measure_Id<-rownames(Timeliness_count)
+Timeliness_count<-Timeliness_count[-1,]
+
+Timeliness_Per<- sapply(Timeliness_analyze, function(y) paste(round((sum(length(which(!is.na(y))))/nrow(Safety_analyze)*100),digit=2),"%",sep=""))
+Timeliness_Per<-data.frame(Timeliness_Per)
+Timeliness_Per$Measure_Id<-rownames(Timeliness_Per)
+Timeliness_Per<-Timeliness_Per[-1,]
+
+summ_Timeliness<- merge(Timeliness_count,Timeliness_Per,by="Measure_Id")
+
+
+ggplot(summ_Timeliness, aes(x = Measure_Id,y=Timeliness_count)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#719ce2")+
+  geom_text(data=summ_Timeliness,aes(x=Measure_Id,y=Timeliness_count,label=Timeliness_count),angle = 90,hjust=1, vjust=0)+
+  geom_text(data=summ_Timeliness,aes(x=Measure_Id,y=Timeliness_count,label=Timeliness_Per),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "No of Timeliness of Care Measures Repoted", y="Hospital Counts")+
+  ggtitle("Count of Hospitals By Number of Timeliness of Care Measures")
+
+############### 8. Efficient Use of Medical Imaging###########################
+
+Effimaging_analyze<- g.effimaging
+
+Effimaging_analyze[ Effimaging_analyze == "Not Available" ] <- NA
+
+Effimaging_count<- sapply(Effimaging_analyze, function(y) sum(length(which(!is.na(y)))))
+Effimaging_count <- data.frame(Effimaging_count)
+Effimaging_count$Measure_Id<-rownames(Effimaging_count)
+Effimaging_count<-Effimaging_count[-1,]
+
+Effimaging_Per<- sapply(Effimaging_analyze, function(y) paste(round((sum(length(which(!is.na(y))))/nrow(Safety_analyze)*100),digit=2),"%",sep=""))
+Effimaging_Per<-data.frame(Effimaging_Per)
+Effimaging_Per$Measure_Id<-rownames(Effimaging_Per)
+Effimaging_Per<-Effimaging_Per[-1,]
+
+summ_Effimaging<- merge(Effimaging_count,Effimaging_Per,by="Measure_Id")
+
+
+ggplot(summ_Effimaging, aes(x = Measure_Id,y=Effimaging_count)) + 
+  geom_bar(alpha = 0.8, width=0.4,stat = "identity",fill="#ab71e2")+
+  geom_text(data=summ_Effimaging,aes(x=Measure_Id,y=Effimaging_count,label=Effimaging_count),angle = 90,hjust=1, vjust=0)+
+  geom_text(data=summ_Effimaging,aes(x=Measure_Id,y=Effimaging_count,label=Effimaging_Per),hjust=0, vjust=0)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = "No of Efficient use of Medical imaging Measures Repoted", y="Hospital Counts")+
+  ggtitle("Count of Hospitals By Number of Efficient Use of Medical Imaging Measures")
+
+
+
+
+#############################################End of analysis###########################################################################
+
+
+
+####################################################
 
