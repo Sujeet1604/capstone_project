@@ -1,545 +1,409 @@
 library(tidyverse)
 library(plyr)
 library(stringr)
+library(DescTools)
+library(rpart)
+library(randomForest)
+library(rpart.plot)
+library(caret)
+library(kernlab)
+library(doParallel)
 
-#------------------------------------COMPLICATIONS START------------------------------------#
+RDH <-
+  read.csv("Readmissions and Deaths - Hospital.csv", stringsAsFactors = FALSE)
 
-# COMPLICATIONS HOSPITAL LEVEL CLEANING AND GROUPING #
-# READ Complications_Hospital #
-Complications_Hospital <- read.csv("Complications - Hospital.csv",stringsAsFactors = FALSE)
-View(Complications_Hospital)
+Mortality_Hosp <-
+  RDH[which(
+    RDH$Measure.ID %in% c(
+      "MORT_30_AMI",
+      "MORT_30_CABG",
+      "MORT_30_COPD",
+      "MORT_30_HF",
+      "MORT_30_PN",
+      "MORT_30_STK"
+    )
+  ),]
 
-# CHECKING FOR NA'S #
-nrow(Complications_Hospital[which(is.na(Complications_Hospital$Compared.to.National)),]) #0
-nrow(Complications_Hospital[which(is.na(Complications_Hospital$Denominator)),]) #0
-nrow(Complications_Hospital[which(is.na(Complications_Hospital$Score)),]) #0
+Readmission_Hosp <- RDH[which(
+  RDH$Measure.ID %in% c(
+    "READM_30_AMI",
+    "READM_30_CABG",
+    "READM_30_COPD",
+    "READM_30_HF",
+    "READM_30_HIP_KNEE",
+    "READM_30_HOSP_WIDE",
+    "READM_30_PN",
+    "READM_30_STK"
+  )
+), ]
 
-# CHECKING FOR "Not Available" #
-nrow(Complications_Hospital[which(Complications_Hospital$Compared.to.National ==
-                                    "Not Available"), ]) #18410
-nrow(Complications_Hospital[which(Complications_Hospital$Denominator ==
-                                    "Not Available"), ]) #25098
-nrow(Complications_Hospital[which(Complications_Hospital$Score ==
-                                    "Not Available"), ]) #21874
+Complications <-
+  read.csv("Complications - Hospital.csv", stringsAsFactors = FALSE)
 
-# CHANGING "Not Available" TO NA #
-Complications_Hospital[which(Complications_Hospital$Compared.to.National ==
-                               "Not Available"), "Compared.to.National"]<- NA
-Complications_Hospital[which(Complications_Hospital$Denominator ==
-                               "Not Available"), "Denominator"]<- NA
-Complications_Hospital[which(Complications_Hospital$Score ==
-                               "Not Available"), "Score"]<- NA
+Mortality_Hosp <-
+  rbind(Mortality_Hosp, Complications[which(Complications$Measure.ID == "PSI_4_SURG_COMP"),])
 
-# CHECKING FOR DUPLICATES #
-nrow(Complications_Hospital)
-nrow(unique(Complications_Hospital))
+HAI <-
+  read.csv("Healthcare Associated Infections - Hospital.csv",
+           stringsAsFactors = FALSE)
 
-# TRANSPOSING THE MAIN VARIABLES Compared.to.National, Denominator AND Score #
-Compared.to.National <-
-  spread(Complications_Hospital[, c("Provider.ID", "Measure.ID", "Compared.to.National")],
-         Measure.ID,
-         Compared.to.National)
+SOC_Hosp <- HAI[grep("_NUMERATOR", HAI$Measure.ID,),]
 
-colnames(Compared.to.National)[-1]<-paste(colnames(Compared.to.National)[-1],"_CTN",sep = "")
+SOC_Hosp <- SOC_Hosp[-(grep("a_", SOC_Hosp$Measure.ID, )), ]
 
-Denominator <-
-  spread(Complications_Hospital[, c("Provider.ID", "Measure.ID", "Denominator")],
-         Measure.ID,
-         Denominator)
+SOC_Hosp <-
+  rbind(SOC_Hosp, Complications[which(Complications$Measure.ID %in% c("COMP_HIP_KNEE", "PSI_90_SAFETY")), -c(12, 14, 15)])
 
-colnames(Denominator)[-1]<-paste(colnames(Denominator)[-1],"_DEN",sep = "")
+HCAHPS_Hosp <-
+  read.csv("HCAHPS - Hospital.csv", stringsAsFactors = FALSE)
 
-Score <-
-  spread(Complications_Hospital[, c("Provider.ID", "Measure.ID", "Score")],
-         Measure.ID,
-         Score)
+PE_Hosp <-
+  HCAHPS_Hosp[which(
+    HCAHPS_Hosp$HCAHPS.Measure.ID %in% c(
+      "H_CLEAN_STAR_RATING",
+      "H_COMP_1_STAR_RATING",
+      "H_COMP_2_STAR_RATING",
+      "H_COMP_3_STAR_RATING",
+      "H_COMP_4_STAR_RATING",
+      "H_COMP_5_STAR_RATING",
+      "H_COMP_6_STAR_RATING",
+      "H_COMP_7_STAR_RATING",
+      "H_HSP_RATING_STAR_RATING",
+      "H_QUIET_STAR_RATING",
+      "H_RECMND_STAR_RATING"
+    )
+  ),]
 
-colnames(Score)[-1]<-paste(colnames(Score)[-1],"_SCO",sep = "")
+TEC_Hosp <-
+  read.csv("Timely and Effective Care - Hospital.csv", stringsAsFactors = FALSE)
 
-# GETTING THE UNIQUE DATA RELATED TO HOSPITALS #
-hospital_data<-unique(Complications_Hospital[,c(1,2,3,4,5,6,7,8)])
+EOC_Hosp <- TEC_Hosp[which(
+  TEC_Hosp$Measure.ID %in%
+    c(
+      "CAC_3",
+      "IMM_2",
+      "IMM_3_OP_27_FAC_ADHPCT",
+      "OP_4",
+      "OP_22",
+      "OP_23",
+      "PC_01",
+      "STK_1",
+      "STK_4",
+      "STK_6",
+      "STK_8",
+      "VTE_1",
+      "VTE_2",
+      "VTE_3",
+      "VTE_5",
+      "VTE_6",
+      "OP_29",
+      "OP_30"
+    )
+), ]
 
-# JOINING hospital_data WITH Compared.to.National, Denominator AND Score #
-final_complications <-
-  join_all(list(hospital_data, Compared.to.National, Denominator, Score), by = "Provider.ID")
-# COMPLICATIONS HOSPITAL LEVEL CLEANING AND GROUPING #
+TOC_Hosp <- TEC_Hosp[which(
+  TEC_Hosp$Measure.ID %in%
+    c("ED_1b", "ED_2b", "OP_3b", "OP_5", "OP_18b", "OP_20", "OP_21")
+),]
 
-# COMPLICATIONS STATE LEVEL CLEANING AND GROUPING #
-# READ Complications_State #
-Complications_State <- read.csv("Complications - State.csv",stringsAsFactors = FALSE)
-View(Complications_State)
+OIE_Hosp <-
+  read.csv("Outpatient Imaging Efficiency - Hospital.csv",
+           stringsAsFactors = FALSE)
 
-# CHECKING FOR "Not Available" #
-nrow(Complications_State[which(Complications_State$Number.of.Hospitals.Worse ==
-                                 "Not Available"), ]) #61
-nrow(Complications_State[which(Complications_State$Number.of.Hospitals.Same ==
-                                 "Not Available"), ]) #61
-nrow(Complications_State[which(Complications_State$Number.of.Hospitals.Better ==
-                                 "Not Available"), ]) #61
-nrow(Complications_State[which(Complications_State$Number.of.Hospitals.Too.Few ==
-                                 "Not Available"), ]) #111
+EUMI_Hosp <-
+  OIE_Hosp[(which(
+    OIE_Hosp$Measure.ID %in% c("OP_8", "OP_10", "OP_11", "OP_13", "OP_14")
+  )), ]
 
-# CHANGING "Not Available" TO NA #
-Complications_State[which(Complications_State$Number.of.Hospitals.Worse ==
-                            "Not Available"), "Number.of.Hospitals.Worse"]<- NA
-Complications_State[which(Complications_State$Number.of.Hospitals.Same ==
-                            "Not Available"), "Number.of.Hospitals.Same"]<- NA
-Complications_State[which(Complications_State$Number.of.Hospitals.Better ==
-                            "Not Available"), "Number.of.Hospitals.Better"]<- NA
-Complications_State[which(Complications_State$Number.of.Hospitals.Too.Few ==
-                            "Not Available"), "Number.of.Hospitals.Worse"]<- NA
+# Mortality_Hosp 7 Measures Seperated, 
+# Readmission_Hosp 8 Measures Seperated,
+# SOC_Hosp 8 Measures Seperated,
+# PE_Hosp 11 Measures Seperated,
+# EOC_Hosp 18 Measures Seperated,
+# TOC_Hosp 7 Measures Seperated,
+# EUMI_Hosp 5 Measures Seperated.
+# So basically we have segregated our 64 measures that will be needed.
 
+hospital_info <- unique(Mortality_Hosp[, c(1:8)])
 
-# TRANSPOSING THE MAIN VARIABLES Worse, Same, Better AND Too.Few #
-Worse_STA <-
-  spread(Complications_State[, c("State", "Measure.ID", "Number.of.Hospitals.Worse")],
-         Measure.ID,
-         Number.of.Hospitals.Worse)
-
-colnames(Worse_STA)[-1]<-paste(colnames(Worse_STA)[-1],"_WOR_STA",sep = "")
-
-Same_STA <-
-  spread(Complications_State[, c("State", "Measure.ID", "Number.of.Hospitals.Same")],
-         Measure.ID,
-         Number.of.Hospitals.Same)
-
-colnames(Same_STA)[-1]<-paste(colnames(Same_STA)[-1],"_SAM_STA",sep = "")
-
-Better_STA <-
-  spread(Complications_State[, c("State", "Measure.ID", "Number.of.Hospitals.Better")],
-         Measure.ID,
-         Number.of.Hospitals.Better)
-
-colnames(Better_STA)[-1]<-paste(colnames(Better_STA)[-1],"_BET_STA",sep = "")
-
-Too.Few_STA <-
-  spread(Complications_State[, c("State", "Measure.ID", "Number.of.Hospitals.Too.Few")],
-         Measure.ID,
-         Number.of.Hospitals.Too.Few)
-
-colnames(Too.Few_STA)[-1]<-paste(colnames(Too.Few_STA)[-1],"_TOF_STA",sep = "")
-
-# JOINING STATE DATA WITH HOSPITAL DATA #
-final_complications<-join_all(list(final_complications, Worse_STA, Same_STA, Better_STA, Too.Few_STA), by = "State")
-# COMPLICATIONS STATE LEVEL CLEANING AND GROUPING #
-
-# COMPLICATIONS NATIONAL LEVEL CLEANING AND GROUPING #
-# READ Complications_National #
-Complications_National <- read.csv("Complications - National.csv",stringsAsFactors = FALSE)
-View(Complications_National)
-
-# CHECKING FOR "Not Available" #
-nrow(Complications_National[which(Complications_National$National.Rate ==
-                                    "Not Available"), ]) #0
-nrow(Complications_National[which(Complications_National$Number.of.Hospitals.Worse ==
-                                    "Not Available"), ]) #0
-nrow(Complications_National[which(Complications_National$Number.of.Hospitals.Same ==
-                                    "Not Available"), ]) #0
-nrow(Complications_National[which(Complications_National$Number.of.Hospitals.Better ==
-                                    "Not Available"), ]) #0
-nrow(Complications_National[which(Complications_National$Number.of.Hospitals.Too.Few ==
-                                    "Not Available"), ]) #0
-
-# TRANSPOSING THE MAIN VARIABLES Rate, Worse, Same, Better AND Too.Few #
-Rate_NAT <-
-  spread(Complications_National[, c("Measure.ID", "National.Rate")],
-         Measure.ID,
-         National.Rate)
-
-colnames(Rate_NAT)<-paste(colnames(Rate_NAT),"_RAT_NAT",sep = "")
-
-Worse_NAT <-
-  spread(Complications_National[, c("Measure.ID", "Number.of.Hospitals.Worse")],
-         Measure.ID,
-         Number.of.Hospitals.Worse)
-
-colnames(Worse_NAT)<-paste(colnames(Worse_NAT),"_WOR_NAT",sep = "")
-
-Same_NAT <-
-  spread(Complications_National[, c("Measure.ID", "Number.of.Hospitals.Same")],
-         Measure.ID,
-         Number.of.Hospitals.Same)
-
-colnames(Same_NAT)<-paste(colnames(Same_NAT),"_SAM_NAT",sep = "")
-
-Better_NAT <-
-  spread(Complications_National[, c("Measure.ID", "Number.of.Hospitals.Better")],
-         Measure.ID,
-         Number.of.Hospitals.Better)
-
-colnames(Better_NAT)<-paste(colnames(Better_NAT),"_BET_NAT",sep = "")
-
-Too.Few_NAT <-
-  spread(Complications_National[, c("Measure.ID", "Number.of.Hospitals.Too.Few")],
-         Measure.ID,
-         Number.of.Hospitals.Too.Few)
-
-colnames(Too.Few_NAT)<-paste(colnames(Too.Few_NAT),"_TOF_NAT",sep = "")
-
-# JOINING NATIONAL DATA WITH FINAL DATA #
-final_complications <-
-  cbind(final_complications,
-        Rate_NAT,
-        Worse_NAT,
-        Same_NAT,
-        Better_NAT,
-        Too.Few_NAT)
-# COMPLICATIONS NATIONAL LEVEL CLEANING AND GROUPING #
-
-# REMOVING THE COLUMNS WITH ENTIRE NA OR BLANKS VALUES #
-final_complications[final_complications==""]<-NA
-
-grep(nrow(final_complications),
-     sapply(final_complications, function(x)
-       sum(is.na(x))))# COLUMNS 30 AND 52 ARE COMPLETELY BLANK
-
-colnames(final_complications)[grep(
-  nrow(final_complications),
-  sapply(final_complications, function(x)
-    sum(is.na(x)))
-)]
-
-final_complications <-
-  final_complications[,-c(grep(
-    nrow(final_complications),
-    sapply(final_complications, function(x)
-      sum(is.na(x)))
-  ))]
-
-# CHANGING final_complications INTO Complications #
-Complications<-final_complications
-
-# WRITE FILE COMPLICATIONS #
-write.csv(Complications,file = "Complications.csv")
-
-#------------------------------------COMPLICATIONS END------------------------------------#
-
-#-----------------------MORTALITY AND READMISSION START------------------------------------#
-
-# READMISSION AND DEATHS HOSPITAL LEVEL CLEANING AND GROUPING #
-# READ Readmissions_and_Deaths_Hospital #
-Readmissions_and_Deaths_Hospital <- read.csv("Readmissions and Deaths - Hospital.csv",stringsAsFactors = FALSE)
-View(Readmissions_and_Deaths_Hospital)
-
-# CHECKING FOR NA'S #
-nrow(Readmissions_and_Deaths_Hospital[which(is.na(Readmissions_and_Deaths_Hospital$Compared.to.National)),]) #0
-nrow(Readmissions_and_Deaths_Hospital[which(is.na(Readmissions_and_Deaths_Hospital$Denominator)),]) #0
-nrow(Readmissions_and_Deaths_Hospital[which(is.na(Readmissions_and_Deaths_Hospital$Score)),]) #0
-
-# CHECKING FOR "Not Available" #
-nrow(Readmissions_and_Deaths_Hospital[which(Readmissions_and_Deaths_Hospital$Compared.to.National ==
-                                              "Not Available"), ]) #14550
-nrow(Readmissions_and_Deaths_Hospital[which(Readmissions_and_Deaths_Hospital$Denominator ==
-                                              "Not Available"), ]) #25742
-nrow(Readmissions_and_Deaths_Hospital[which(Readmissions_and_Deaths_Hospital$Score ==
-                                              "Not Available"), ]) #25742
-
-# CHANGING "Not Available" TO NA #
-Readmissions_and_Deaths_Hospital[which(Readmissions_and_Deaths_Hospital$Compared.to.National ==
-                                         "Not Available"), "Compared.to.National"]<- NA
-Readmissions_and_Deaths_Hospital[which(Readmissions_and_Deaths_Hospital$Denominator ==
-                                         "Not Available"), "Denominator"]<- NA
-Readmissions_and_Deaths_Hospital[which(Readmissions_and_Deaths_Hospital$Score ==
-                                         "Not Available"), "Score"]<- NA
-
-# CHECKING FOR DUPLICATES #
-nrow(Readmissions_and_Deaths_Hospital)
-nrow(unique(Readmissions_and_Deaths_Hospital))
-
-# TRANSPOSING THE MAIN VARIABLES Compared.to.National, Denominator AND Score #
-Compared.to.National <-
-  spread(Readmissions_and_Deaths_Hospital[, c("Provider.ID", "Measure.ID", "Compared.to.National")],
-         Measure.ID,
-         Compared.to.National)
-
-colnames(Compared.to.National)[-1]<-paste(colnames(Compared.to.National)[-1],"_CTN",sep = "")
-
-Denominator <-
-  spread(Readmissions_and_Deaths_Hospital[, c("Provider.ID", "Measure.ID", "Denominator")],
-         Measure.ID,
-         Denominator)
-
-colnames(Denominator)[-1]<-paste(colnames(Denominator)[-1],"_DEN",sep = "")
-
-Score <-
-  spread(Readmissions_and_Deaths_Hospital[, c("Provider.ID", "Measure.ID", "Score")],
+a.mortality <-
+  spread(Mortality_Hosp[, c("Provider.ID", "Measure.ID", "Score")],
          Measure.ID,
          Score)
 
-colnames(Score)[-1]<-paste(colnames(Score)[-1],"_SCO",sep = "")
-
-# GETTING THE UNIQUE DATA RELATED TO HOSPITALS #
-hospital_data<-unique(Readmissions_and_Deaths_Hospital[,c(1,2,3,4,5,6,7,8)])
-
-# JOINING hospital_data WITH Compared.to.National, Denominator AND Score #
-final_readmi_deaths <-
-  join_all(list(hospital_data, Compared.to.National, Denominator, Score), by = "Provider.ID")
-# READMISSION AND DEATHS HOSPITAL LEVEL CLEANING AND GROUPING #
-
-# READMISSION AND DEATHS STATE LEVEL CLEANING AND GROUPING #
-# READ Readmissions_and_Deaths_State #
-Readmissions_and_Deaths_State <- read.csv("Readmissions and Deaths - State.csv",stringsAsFactors = FALSE)
-View(Readmissions_and_Deaths_State)
-
-# CHECKING FOR "Not Available" #
-nrow(Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Worse ==
-                                           "Not Available"), ]) #14
-nrow(Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Same ==
-                                           "Not Available"), ]) #14
-nrow(Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Better ==
-                                           "Not Available"), ]) #14
-nrow(Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Too.Few ==
-                                           "Not Available"), ]) #14
-
-# CHANGING "Not Available" TO NA #
-Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Worse ==
-                                      "Not Available"), "Number.of.Hospitals.Worse"]<- NA
-Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Same ==
-                                      "Not Available"), "Number.of.Hospitals.Same"]<- NA
-Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Better ==
-                                      "Not Available"), "Number.of.Hospitals.Better"]<- NA
-Readmissions_and_Deaths_State[which(Readmissions_and_Deaths_State$Number.of.Hospitals.Too.Few ==
-                                      "Not Available"), "Number.of.Hospitals.Worse"]<- NA
-
-
-# TRANSPOSING THE MAIN VARIABLES Worse, Same, Better AND Too.Few #
-Worse_STA <-
-  spread(Readmissions_and_Deaths_State[, c("State", "Measure.ID", "Number.of.Hospitals.Worse")],
-         Measure.ID,
-         Number.of.Hospitals.Worse)
-
-colnames(Worse_STA)[-1]<-paste(colnames(Worse_STA)[-1],"_WOR_STA",sep = "")
-
-Same_STA <-
-  spread(Readmissions_and_Deaths_State[, c("State", "Measure.ID", "Number.of.Hospitals.Same")],
-         Measure.ID,
-         Number.of.Hospitals.Same)
-
-colnames(Same_STA)[-1]<-paste(colnames(Same_STA)[-1],"_SAM_STA",sep = "")
-
-Better_STA <-
-  spread(Readmissions_and_Deaths_State[, c("State", "Measure.ID", "Number.of.Hospitals.Better")],
-         Measure.ID,
-         Number.of.Hospitals.Better)
-
-colnames(Better_STA)[-1]<-paste(colnames(Better_STA)[-1],"_BET_STA",sep = "")
-
-Too.Few_STA <-
-  spread(Readmissions_and_Deaths_State[, c("State", "Measure.ID", "Number.of.Hospitals.Too.Few")],
-         Measure.ID,
-         Number.of.Hospitals.Too.Few)
-
-colnames(Too.Few_STA)[-1]<-paste(colnames(Too.Few_STA)[-1],"_TOF_STA",sep = "")
-
-# JOINING STATE DATA WITH HOSPITAL DATA #
-final_readmi_deaths<-join_all(list(final_readmi_deaths, Worse_STA, Same_STA, Better_STA, Too.Few_STA), by = "State")
-# READMISSION AND DEATHS STATE LEVEL CLEANING AND GROUPING #
-
-# READMISSION AND DEATHS NATIONAL LEVEL CLEANING AND GROUPING #
-# READ Readmissions_and_Deaths_National #
-Readmissions_and_Deaths_National <- read.csv("Readmissions and Deaths - National.csv",stringsAsFactors = FALSE)
-View(Readmissions_and_Deaths_National)
-
-# CHECKING FOR "Not Available" #
-nrow(Readmissions_and_Deaths_National[which(Readmissions_and_Deaths_National$National.Rate ==
-                                              "Not Available"), ]) #0
-nrow(Readmissions_and_Deaths_National[which(Readmissions_and_Deaths_National$Number.of.Hospitals.Worse ==
-                                              "Not Available"), ]) #0
-nrow(Readmissions_and_Deaths_National[which(Readmissions_and_Deaths_National$Number.of.Hospitals.Same ==
-                                              "Not Available"), ]) #0
-nrow(Readmissions_and_Deaths_National[which(Readmissions_and_Deaths_National$Number.of.Hospitals.Better ==
-                                              "Not Available"), ]) #0
-nrow(Readmissions_and_Deaths_National[which(Readmissions_and_Deaths_National$Number.of.Hospitals.Too.Few ==
-                                              "Not Available"), ]) #0
-
-# TRANSPOSING THE MAIN VARIABLES Rate, Worse, Same, Better AND Too.Few #
-Rate_NAT <-
-  spread(Readmissions_and_Deaths_National[, c("Measure.ID", "National.Rate")],
-         Measure.ID,
-         National.Rate)
-
-colnames(Rate_NAT)<-paste(colnames(Rate_NAT),"_RAT_NAT",sep = "")
-
-Worse_NAT <-
-  spread(Readmissions_and_Deaths_National[, c("Measure.ID", "Number.of.Hospitals.Worse")],
-         Measure.ID,
-         Number.of.Hospitals.Worse)
-
-colnames(Worse_NAT)<-paste(colnames(Worse_NAT),"_WOR_NAT",sep = "")
-
-Same_NAT <-
-  spread(Readmissions_and_Deaths_National[, c("Measure.ID", "Number.of.Hospitals.Same")],
-         Measure.ID,
-         Number.of.Hospitals.Same)
-
-colnames(Same_NAT)<-paste(colnames(Same_NAT),"_SAM_NAT",sep = "")
-
-Better_NAT <-
-  spread(Readmissions_and_Deaths_National[, c("Measure.ID", "Number.of.Hospitals.Better")],
-         Measure.ID,
-         Number.of.Hospitals.Better)
-
-colnames(Better_NAT)<-paste(colnames(Better_NAT),"_BET_NAT",sep = "")
-
-Too.Few_NAT <-
-  spread(Readmissions_and_Deaths_National[, c("Measure.ID", "Number.of.Hospitals.Too.Few")],
-         Measure.ID,
-         Number.of.Hospitals.Too.Few)
-
-colnames(Too.Few_NAT)<-paste(colnames(Too.Few_NAT),"_TOF_NAT",sep = "")
-
-# JOINING NATIONAL DATA WITH FINAL DATA #
-final_readmi_deaths <-
-  cbind(final_readmi_deaths,
-        Rate_NAT,
-        Worse_NAT,
-        Same_NAT,
-        Better_NAT,
-        Too.Few_NAT)
-# READMISSION AND DEATHS NATIONAL LEVEL CLEANING AND GROUPING #
-
-# REMOVING THE COLUMNS WITH ENTIRE NA OR BLANKS VALUES #
-final_readmi_deaths[final_readmi_deaths==""]<-NA
-
-grep(nrow(final_readmi_deaths),
-     sapply(final_readmi_deaths, function(x)
-       sum(is.na(x))))# NONE OF THE COLUMNS ARE COMPLETELY BLANK
-
-# SEPERATING final_readmi_deaths INTO Mortality AND Readmission #
-Mortality <-
-  final_readmi_deaths[, c(1:8, grep("MORT", colnames(final_readmi_deaths)))]
-
-Readmission <-
-  final_readmi_deaths[, c(1:8, grep("READM", colnames(final_readmi_deaths)))]
-
-# FINDING FOR DEATHS OR READMISSIONS IN COMPLICATIONS DATA #
-Complications_National[grep("Death",Complications_National$Measure.Name),"Measure.ID"] #PSI_4_SURG_COMP
-Complications_National[grep("Read",Complications_National$Measure.Name),"Measure.ID"]
-
-final_complications_death <-
-  final_complications[, c(1:8, grep("PSI_4_SURG_COMP", colnames(final_complications)))]
-
-final_complications_without_death<-final_complications[, -c(2:8, grep("PSI_4_SURG_COMP", colnames(final_complications)))]
-
-# JOINING PSI_4_SURG_COMP TO Mortality
-Mortality<-join_all(list(Mortality, final_complications_death), by = "Provider.ID")
-
-# WRITE FILE MORTALITY AND READMISSION #
-write.csv(Mortality,file = "Mortality.csv")
-write.csv(Readmission,file = "Readmission.csv")
-
-#-----------------------MORTALITY AND READMISSION END------------------------------------#
-
-#-----------------------SAFETY OF CARE START------------------------------------#
-
-# HAI HOSPITAL LEVEL CLEANING AND GROUPING #
-# READ HAI_Hospital #
-HAI_Hospital <- read.csv("Healthcare Associated Infections - Hospital.csv",stringsAsFactors = FALSE)
-View(HAI_Hospital)
-
-# CHECKING FOR NA'S #
-nrow(HAI_Hospital[which(is.na(HAI_Hospital$Compared.to.National)),]) #0
-nrow(HAI_Hospital[which(is.na(HAI_Hospital$Score)),]) #0
-
-# CHECKING FOR "Not Available" #
-nrow(HAI_Hospital[which(HAI_Hospital$Compared.to.National ==
-                          "Not Available"), ]) #21010
-nrow(HAI_Hospital[which(HAI_Hospital$Score ==
-                          "Not Available"), ]) #101886
-
-# CHANGING "Not Available" TO NA #
-HAI_Hospital[which(HAI_Hospital$Compared.to.National ==
-                     "Not Available"), "Compared.to.National"]<- NA
-HAI_Hospital[which(HAI_Hospital$Score ==
-                     "Not Available"), "Score"]<- NA
-
-# CHECKING FOR DUPLICATES #
-nrow(HAI_Hospital)
-nrow(unique(HAI_Hospital))
-
-# TRANSPOSING THE MAIN VARIABLES Compared.to.National, Denominator AND Score #
-Compared.to.National <-
-  spread(HAI_Hospital[, c("Provider.ID", "Measure.ID", "Compared.to.National")],
-         Measure.ID,
-         Compared.to.National)
-
-colnames(Compared.to.National)[-1]<-paste(colnames(Compared.to.National)[-1],"_CTN",sep = "")
-
-Score <-
-  spread(HAI_Hospital[, c("Provider.ID", "Measure.ID", "Score")],
+b.readmission <-
+  spread(Readmission_Hosp[, c("Provider.ID", "Measure.ID", "Score")],
          Measure.ID,
          Score)
 
-colnames(Score)[-1]<-paste(colnames(Score)[-1],"_SCO",sep = "")
+c.safety <- spread(SOC_Hosp[, c("Provider.ID", "Measure.ID", "Score")],
+                   Measure.ID,
+                   Score)
 
-# GETTING THE UNIQUE DATA RELATED TO HOSPITALS #
-hospital_data<-unique(HAI_Hospital[,c(1,2,3,4,5,6,7,8)])
+d.patientexp <-
+  spread(PE_Hosp[, c("Provider.ID",
+                     "HCAHPS.Measure.ID",
+                     "Patient.Survey.Star.Rating")],
+         HCAHPS.Measure.ID,
+         Patient.Survey.Star.Rating)
 
-# JOINING hospital_data WITH Compared.to.National, Denominator AND Score #
-final_hai <-
-  join_all(list(hospital_data, Compared.to.National, Score), by = "Provider.ID")
-# HAI HOSPITAL LEVEL CLEANING AND GROUPING #
-
-# HAI STATE LEVEL CLEANING AND GROUPING #
-# READ HAI_State #
-HAI_State <- read.csv("Healthcare Associated Infections - State.csv",stringsAsFactors = FALSE)
-View(HAI_State)
-
-# CHECKING FOR "Not Available" #
-nrow(HAI_State[which(HAI_State$Score ==
-                       "Not Available"), ]) #73
-
-# CHANGING "Not Available" TO NA #
-HAI_State[which(HAI_State$Score ==
-                  "Not Available"), "Score"]<- NA
-
-# TRANSPOSING THE MAIN VARIABLES Worse, Same, Better AND Too.Few #
-Score_STA <-
-  spread(HAI_State[, c("State", "Measure.ID", "Score")],
+e.effectiveness <-
+  spread(EOC_Hosp[, c("Provider.ID", "Measure.ID", "Score")],
          Measure.ID,
          Score)
 
-colnames(Score_STA)[-1]<-paste(colnames(Score_STA)[-1],"_SCO_STA",sep = "")
-
-# JOINING STATE DATA WITH HOSPITAL DATA #
-final_hai<-join_all(list(final_hai, Score_STA), by = "State")
-# HAI STATE LEVEL CLEANING AND GROUPING #
-
-# HAI NATIONAL LEVEL CLEANING AND GROUPING #
-# READ HAI_National #
-HAI_National <- read.csv("Healthcare Associated Infections - National.csv",stringsAsFactors = FALSE)
-View(HAI_National)
-
-# CHECKING FOR "Not Available" #
-nrow(HAI_National[which(HAI_National$Score ==
-                          "Not Available"), ]) #0
-
-# TRANSPOSING THE MAIN VARIABLES Rate, Worse, Same, Better AND Too.Few #
-Score_NAT <-
-  spread(HAI_National[, c("Measure.ID", "Score")],
+f.timeliness <-
+  spread(TOC_Hosp[, c("Provider.ID", "Measure.ID", "Score")],
          Measure.ID,
          Score)
 
-colnames(Score_NAT)<-paste(colnames(Score_NAT),"_SCO_NAT",sep = "")
+g.effimaging <-
+  spread(EUMI_Hosp[, c("Provider.ID", "Measure.ID", "Score")],
+         Measure.ID,
+         Score)
 
-# JOINING NATIONAL DATA WITH FINAL DATA #
-final_hai <-
-  cbind(final_hai,
-        Score_NAT)
-# HAI NATIONAL LEVEL CLEANING AND GROUPING #
+final_chs_data <- join_all(
+  list(
+    a.mortality,
+    b.readmission,
+    c.safety,
+    d.patientexp,
+    e.effectiveness,
+    f.timeliness,
+    g.effimaging
+  ),
+  by = "Provider.ID"
+)
 
-# REMOVING THE COLUMNS WITH ENTIRE NA VALUES/BLANKS
-final_hai[final_hai==""]<-NA
+## CREATING SEPERATE FILE FOR EACH GROUP ##
+write.csv(a.mortality,"Mortality.csv")
+write.csv(b.readmission,"Readmission.csv")
+write.csv(c.safety,"Safety.csv")
+write.csv(d.patientexp,"PatientExp.csv")
+write.csv(e.effectiveness,"Effectiveness.csv")
+write.csv(f.timeliness,"Timeliness.csv")
+write.csv(g.effimaging,"EffImaging.csv")
+## CREATING SEPERATE FILE FOR EACH GROUP ##
 
-grep(nrow(final_hai), sapply(final_hai, function(x)
-  sum(is.na(x)))) # 40 COLUMNS ARE COMPLETELY BLANK/NA
+##______GROUPING OF DATA IS COMPLETED______________##
 
-final_hai<-final_hai[, -c(grep(nrow(final_hai),sapply(final_hai, function(x) sum(is.na(x)))))]
+##______NOW WE START WITH DATA CLEANING, SCALING AND OUTLIER TREATMENT______##
 
-# JOINING final_hai AND final_complications_without_death INTO SOC i.e Safety Of Care #
-SOC<-join_all(list(final_hai,final_complications_without_death),by = "Provider.ID")
+final_chs_data[final_chs_data == "Not Available"] <- NA
+final_chs_data <-
+  as.data.frame(sapply(final_chs_data, function(x)
+    as.numeric(as.character(x))))
 
-# WRITE FILE Safety Of Care #
-write.csv(SOC,file = "Safety Of Care.csv")
+# a.mortality LOWER THE SCORE - BETTER THE RESULT,
+# b.readmission LOWER THE SCORE - BETTER THE RESULT,
+# c.safety LOWER THE SCORE - BETTER THE RESULT,
+# d.patientexp HIGHER THE SCORE - BETTER THE RESULT,
+# e.effectiveness MIX VARIABLES ARE PRESENT,
+# f.timeliness LOWER THE SCORE - BETTER THE RESULT,
+# g.effimaging LOWER THE SCORE - BETTER THE RESULT
 
-#-----------------------SAFETY OF CARE END------------------------------------#
+mortality_var<-colnames(a.mortality[,-1])
+readmission_var<-colnames(b.readmission[,-1])
+safety_var<-colnames(c.safety[,-1])
+patientexp_var<-colnames(d.patientexp[,-1])
+effectiveness_var<-colnames(e.effectiveness[,-1])
+timeliness_var<-colnames(f.timeliness[,-1])
+effimaging_var<-colnames(g.effimaging[,-1])
+
+## ACCORDING TO CHS METHODOLOGY ##
+inverse_scale<-function(a){
+  inv_scale<-(mean(a,na.rm = TRUE)-a)/sd(a,na.rm = TRUE)
+}  
+
+inv_scale_var<-union_all(mortality_var,readmission_var,safety_var,timeliness_var,effimaging_var)
+scale_var<-patientexp_var
+
+TEC_National <-
+  read.csv("Timely and Effective Care - National.csv", stringsAsFactors = FALSE)
+
+temp_1 <-
+  unique(TEC_National[which(TEC_National$Measure.ID %in% effectiveness_var), c(1, 2)])
+
+effectiveness_higher <- temp_1[which(
+  temp_1$Measure.Name %in%
+    grep(
+      "higher",
+      temp_1$Measure.Name,
+      ignore.case = TRUE,
+      value = TRUE
+    )
+), 2]
+effectiveness_lower <- temp_1[which(
+  temp_1$Measure.Name %in%
+    grep(
+      "lower",
+      temp_1$Measure.Name,
+      ignore.case = TRUE,
+      value = TRUE
+    )
+), 2]
+
+effectiveness_higher <-
+  union_all(effectiveness_higher, c("OP_29", "OP_30"))
+effectiveness_lower <-
+  effectiveness_lower[!(effectiveness_lower == "STK_6")]
+
+scale_var <- union_all(scale_var, effectiveness_higher)
+inv_scale_var <- union_all(inv_scale_var, effectiveness_lower)
+
+final_chs_data[,scale_var]<-scale(final_chs_data[,scale_var])
+final_chs_data[,inv_scale_var]<-sapply(final_chs_data[,inv_scale_var],inverse_scale)
+
+## FURTHER AS MENTIONED WE NEED TO LIMIT THE OUTLIER TO +3 TO -3 ##
+trial<-final_chs_data[,-1]
+trial[trial > 3] <- 3
+trial[trial < -3] <- -3
+
+final_chs_data <- cbind(final_chs_data[, 1], trial)
+colnames(final_chs_data)[1]<-"Provider.ID"
+
+## CLEANING FINISHES ##
+
+## READING THE HOSPITAL GENERAL INFORMATION FILE ##
+HGI_Hosp <-
+  read.csv("Hospital General Information.csv",
+           stringsAsFactors = FALSE)
+
+## ADDING THE RATING VARIABLE TO THE final_chs_data ##
+final_chs_data <-
+  merge(final_chs_data, HGI_Hosp[, c(1, 13)], by = "Provider.ID")
+final_chs_data$Hospital.overall.rating<-as.numeric(as.character(final_chs_data$Hospital.overall.rating))
+
+## CONVERTING RATING TO FACTOR ##
+final_chs_data$Hospital.overall.rating <-
+  as.factor(final_chs_data$Hospital.overall.rating)
+##______DATA CLEANING, SCALING AND OUTLIER TREATMENT COMPLETED______##
+
+## STARTING RANDOM FOREST MODELLING ##
+rf_data<-final_chs_data[,-1]
+
+## REMOVING COLUMNS WHERE THERE IS EXCESS NA WE ARE TAKING 60:40 RATIO ##
+## WE ARE ONLY TAKING COLUMNS WHERE VALUE OF NA IS LESS THAN 40 PERCENT ##
+rf_data<-rf_data[,sapply(rf_data, function(x) (sum(is.na(x))/length(x))*100)<40]
+
+## NOW WE WILL REPLACE NA WITH MEDIAN VALUES ##
+na_treatment<-function(a){
+  a[is.na(a)]<-median(a,na.rm = TRUE)
+  return(a)
+}
+
+rf_data[,-ncol(rf_data)]<-as.data.frame(sapply(rf_data[,-ncol(rf_data)], function(x) na_treatment(x)))
+
+## CREATING TRAIN AND TEST DATA SET
+indices <- sample(1:nrow(rf_data), size = 0.7 * nrow(rf_data))
+train<-rf_data[indices,]
+test<-rf_data[-indices,]
+
+## RANDOM FOREST WITH 1000 TREES ##
+rf <-
+  randomForest(
+    Hospital.overall.rating ~ .,
+    data = train,
+    mtry = 24,
+    na.action = na.omit,
+    ntree = 1000
+  )
+
+rf_pred <- predict(rf, test[, -ncol(rf_data)])
+table(rf_pred, test[, ncol(rf_data)])
+confusionMatrix(rf_pred, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.8083          
+# 95% CI : (0.7839, 0.8311)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
+# 
+# Kappa : 0.6984          
+# Mcnemar's Test P-Value : NA    
+
+## TRAINING RANDOM FOREST MODEL ##
+trainControl <- trainControl(method="repeatedcv", number=10, repeats=3)
+metric <- "Accuracy"
+set.seed(100)
+mtry <- sqrt(ncol(train))
+grid <- expand.grid(.mtry=mtry)
+fit.rf <- train(Hospital.overall.rating~., data=train, method="rf", metric=metric, 
+                tuneGrid=grid, trControl=trainControl,na.action=na.omit)
+rf_pred_cv<- predict(fit.rf, test)
+confusionMatrix(rf_pred_cv, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.7857          
+# 95% CI : (0.7603, 0.8096)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
+# 
+# Kappa : 0.6569          
+# Mcnemar's Test P-Value : NA
+
+##  TRAINING ON RPART ##
+tree <- rpart(Hospital.overall.rating ~., data=train, na.action=na.omit, 
+              control = rpart.control(minsplit=10, cp=0.01))
+tree_pred <-  predict(tree, test[, -ncol(rf_data)], type = "class")
+table(tree_pred, test[, ncol(rf_data)])
+confusionMatrix(tree_pred, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.6483          
+# 95% CI : (0.6193, 0.6764)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
+# 
+# Kappa : 0.4414          
+# Mcnemar's Test P-Value : NA  
+
+## TRAINING ON SVM ##
+trainControl <- trainControl(method="cv", number=5)
+metric <- "Accuracy"
+set.seed(100)
+grid <- expand.grid(C=seq(1, 5, by=1))
+fit.svm <- train(Hospital.overall.rating~., data=train, method="svmLinear", metric=metric, 
+                 tuneGrid=grid, trControl=trainControl,na.action=na.omit)
+svm_pred_cv<- predict(fit.svm, test)
+confusionMatrix(svm_pred_cv, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.877           
+# 95% CI : (0.8562, 0.8958)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
+# 
+# Kappa : 0.812           
+# Mcnemar's Test P-Value : NA  
+
+## TRAINING ON KNN ##
+knnmodel <-  train(Hospital.overall.rating~., 
+                   data = train,
+                   method = "knn", 
+                   preProcess = c("center", "scale"),
+                   tuneLength = 10,
+                   trControl = trainControl(method = "cv"),
+                   na.action=na.omit)
+
+knn_pred_cv<- predict(knnmodel, test)
+confusionMatrix(knn_pred_cv, test[, ncol(rf_data)])
+
+# Overall Statistics
+# 
+# Accuracy : 0.6998          
+# 95% CI : (0.6718, 0.7267)
+# No Information Rate : 0.4919          
+# P-Value [Acc > NIR] : < 2.2e-16       
+# 
+# Kappa : 0.5132          
+# Mcnemar's Test P-Value : NA 
+
+## THUS WE CAN SEE THAT SVM AND RANDOM FOREST PROVIDE THE BEST ACCURACY POSSIBLE ##
+
+## EDA ANALYSIS ##
+
