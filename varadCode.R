@@ -1,5 +1,6 @@
 library(tidyverse)
 library(plyr)
+library(dplyr)
 library(stringr)
 library(DescTools)
 library(rpart)
@@ -794,3 +795,227 @@ ggplot(summ_Effimaging, aes(x = Measure_Id,y=Effimaging_count)) +
 
 ####################################################
 
+
+
+###################################################### FACTOR ANALYSIS ######################################################
+
+fa_mortality<-as.data.frame(sapply(a.mortality, function(x)
+    as.numeric(as.character(x))))
+fa_readmission<-as.data.frame(sapply(b.readmission, function(x)
+  as.numeric(as.character(x))))
+fa_safety<-as.data.frame(sapply(c.safety, function(x)
+  as.numeric(as.character(x))))
+fa_patientexp<-as.data.frame(sapply(d.patientexp, function(x)
+  as.numeric(as.character(x))))
+fa_effectiveness<-as.data.frame(sapply(e.effectiveness, function(x)
+  as.numeric(as.character(x))))
+fa_timeliness<-as.data.frame(sapply(f.timeliness, function(x)
+  as.numeric(as.character(x))))
+fa_effimaging<-as.data.frame(sapply(g.effimaging, function(x)
+  as.numeric(as.character(x))))
+
+#Plot the correlations
+corrplot(cor(fa_mortality[,-1],use="complete.obs"),type = 'lower')
+corrplot(cor(fa_readmission[,-1],use="complete.obs"),type = 'lower')
+corrplot(cor(fa_safety[,-1],use="complete.obs"),type = 'lower')
+corrplot(cor(fa_patientexp[,-1],use="complete.obs"),type = 'lower')
+corrplot(cor(fa_effectiveness[,-1],use="complete.obs"),type = 'lower')
+corrplot(cor(fa_timeliness[,-1],use="complete.obs"),type = 'lower')
+corrplot(cor(fa_effimaging[,-1],use="complete.obs"),type = 'lower')
+
+#Scale the data
+fa_mortality[,-1]<-as.data.frame(sapply(fa_mortality[,-1], function(x)
+  scale(x)))
+fa_readmission[,-1]<-as.data.frame(sapply(fa_readmission[,-1], function(x)
+  scale(x)))
+fa_safety[,-1]<-as.data.frame(sapply(fa_safety[,-1], function(x)
+  scale(x)))
+fa_patientexp[,-1]<-as.data.frame(sapply(fa_patientexp[,-1], function(x)
+  scale(x)))
+fa_effectiveness[,-1]<-as.data.frame(sapply(fa_effectiveness[,-1], function(x)
+  scale(x)))
+fa_timeliness[,-1]<-as.data.frame(sapply(fa_timeliness[,-1], function(x)
+  scale(x)))
+fa_effimaging[,-1]<-as.data.frame(sapply(fa_effimaging[,-1], function(x)
+  scale(x)))
+
+## CHECKING FOR HOSPITALS WITH LESS THAN 3 MEASURES AS INVALID ##
+fa_mortality[,"3MEA"]<-if_else(apply(fa_mortality[,-1], 1,function(x) sum(!is.na(x)))<3,FALSE,TRUE)
+fa_readmission[,"3MEA"]<-if_else(apply(fa_readmission[,-1], 1,function(x) sum(!is.na(x)))<3,FALSE,TRUE)
+fa_safety[,"3MEA"]<-if_else(apply(fa_safety[,-1], 1,function(x) sum(!is.na(x)))<3,FALSE,TRUE)
+fa_patientexp[,"3MEA"]<-if_else(apply(fa_patientexp[,-1], 1,function(x) sum(!is.na(x)))<3,FALSE,TRUE)
+fa_effectiveness[,"3MEA"]<-if_else(apply(fa_effectiveness[,-1], 1,function(x) sum(!is.na(x)))<3,FALSE,TRUE)
+fa_timeliness[,"3MEA"]<-if_else(apply(fa_timeliness[,-1], 1,function(x) sum(!is.na(x)))<3,FALSE,TRUE)
+fa_effimaging[,"3MEA"]<-if_else(apply(fa_effimaging[,-1], 1,function(x) sum(!is.na(x)))<3,FALSE,TRUE)
+
+## CHECKING THE PERCENTAGE OF INVALID HOSPITALS WHICH HAVE LESS THAN 3 MEASURES ##
+(nrow(fa_mortality)-sum(fa_mortality$`3MEA`))/nrow(fa_mortality)*100 # 22.0631
+(nrow(fa_readmission)-sum(fa_readmission$`3MEA`))/nrow(fa_readmission)*100 # 12.2665
+(nrow(fa_safety)-sum(fa_safety$`3MEA`))/nrow(fa_safety)*100 # 20.65172
+(nrow(fa_patientexp)-sum(fa_patientexp$`3MEA`))/nrow(fa_patientexp)*100 # 27.18971
+(nrow(fa_effectiveness)-sum(fa_effectiveness$`3MEA`))/nrow(fa_effectiveness)*100 # 17.33084
+(nrow(fa_timeliness)-sum(fa_timeliness$`3MEA`))/nrow(fa_timeliness)*100 # 19.34413
+(nrow(fa_effimaging)-sum(fa_effimaging$`3MEA`))/nrow(fa_effimaging)*100 # 28.82939
+
+## HANDLING NA BY CHANGING THEM TO MEDIANS ##
+fa_mortality[, -c(1, ncol(fa_mortality))] <-
+  sapply(fa_mortality[, -c(1, ncol(fa_mortality))], function(x)
+    if_else(is.na(x), median(x, na.rm = TRUE), x))
+
+fa_readmission[, -c(1, ncol(fa_readmission))] <-
+  sapply(fa_readmission[, -c(1, ncol(fa_readmission))], function(x)
+    if_else(is.na(x), median(x, na.rm = TRUE), x))
+
+fa_safety[, -c(1, ncol(fa_safety))] <-
+  sapply(fa_safety[, -c(1, ncol(fa_safety))], function(x)
+    if_else(is.na(x), median(x, na.rm = TRUE), x))
+
+fa_patientexp[, -c(1, ncol(fa_patientexp))] <-
+  sapply(fa_patientexp[, -c(1, ncol(fa_patientexp))], function(x)
+    if_else(is.na(x), median(x, na.rm = TRUE), x))
+
+fa_effectiveness[, -c(1, ncol(fa_effectiveness))] <-
+  sapply(fa_effectiveness[, -c(1, ncol(fa_effectiveness))], function(x)
+    if_else(is.na(x), median(x, na.rm = TRUE), x))
+
+fa_timeliness[, -c(1, ncol(fa_timeliness))] <-
+  sapply(fa_timeliness[, -c(1, ncol(fa_timeliness))], function(x)
+    if_else(is.na(x), median(x, na.rm = TRUE), x))
+
+fa_effimaging[, -c(1, ncol(fa_effimaging))] <-
+  sapply(fa_effimaging[, -c(1, ncol(fa_effimaging))], function(x)
+    if_else(is.na(x), median(x, na.rm = TRUE), x))
+
+## FACTOR ANALYSIS ##
+
+# USING PCA TO FIND THE CORRECT NUMBER OF FACTORS ##
+plot(princomp(na.omit(fa_mortality[,-c(1,ncol(fa_mortality))])))
+plot(princomp(na.omit(fa_readmission[,-c(1,ncol(fa_readmission))])))
+plot(princomp(na.omit(fa_safety[,-c(1,ncol(fa_safety))])))
+plot(princomp(na.omit(fa_patientexp[,-c(1,ncol(fa_patientexp))])))
+plot(princomp(na.omit(fa_effectiveness[,-c(1,ncol(fa_effectiveness))])))
+plot(princomp(na.omit(fa_timeliness[,-c(1,ncol(fa_timeliness))])))
+plot(princomp(na.omit(fa_effimaging[,-c(1,ncol(fa_effimaging))])))
+# THEREFORE FROM THE ABOVE ANALYSIS WE CAN CONLUDE TO USE 1 FACTOR #
+
+# CREATING A FUNCTION TO CALCULATE THE GROUP SCORE USING FACT ANALYSIS #
+grp_scr_fun<-function(grp_df){
+  fa <-
+    factanal(na.omit(grp_df[, -c(1, ncol(grp_df))]),
+             factors = 1,
+             rotation = "varimax")
+  weights<-as.matrix(fa$loadings/sum(fa$loadings)) # THIS FORMULA IS USED TO NORMALIZE THE LOADING TO GET THE WEIGHTS
+  fa_new_grp<-grp_df[,c(1,ncol(grp_df))]
+  fa_new_grp[,"grp_score"] <-
+    apply(grp_df[, -c(1, ncol(grp_df))], 1, function(x)
+      sum(x * weights) / length(weights)) # THIS FORMULA IS USED TO CREATE THE WEIGHTED SCORE FOR THE GROUPS
+  return(fa_new_grp[which(fa_new_grp$`3MEA`),c(1,3)])
+}
+
+fa_mortality_grp<-grp_scr_fun(fa_mortality)
+fa_readmission_grp<-grp_scr_fun(fa_readmission)
+fa_safety_grp<-grp_scr_fun(fa_safety)
+fa_patientexp_grp<-grp_scr_fun(fa_patientexp)
+fa_effectiveness_grp<-grp_scr_fun(fa_effectiveness)
+fa_timeliness_grp<-grp_scr_fun(fa_timeliness)
+fa_effimaging_grp<-grp_scr_fun(fa_effimaging)
+
+final_grp_score_data<-merge(hospital_info,fa_mortality_grp,by="Provider.ID", all=T)
+colnames(final_grp_score_data)[ncol(final_grp_score_data)]<-"mortality_scr"
+
+final_grp_score_data<-merge(final_grp_score_data,fa_readmission_grp,by="Provider.ID", all=T)
+colnames(final_grp_score_data)[ncol(final_grp_score_data)]<-"readmission_scr"
+
+final_grp_score_data<-merge(final_grp_score_data,fa_safety_grp,by="Provider.ID", all=T)
+colnames(final_grp_score_data)[ncol(final_grp_score_data)]<-"safety_scr"
+
+final_grp_score_data<-merge(final_grp_score_data,fa_patientexp_grp,by="Provider.ID", all=T)
+colnames(final_grp_score_data)[ncol(final_grp_score_data)]<-"patientexp_scr"
+
+final_grp_score_data<-merge(final_grp_score_data,fa_effectiveness_grp,by="Provider.ID", all=T)
+colnames(final_grp_score_data)[ncol(final_grp_score_data)]<-"effectiveness_scr"
+
+final_grp_score_data<-merge(final_grp_score_data,fa_timeliness_grp,by="Provider.ID", all=T)
+colnames(final_grp_score_data)[ncol(final_grp_score_data)]<-"timeliness_scr"
+
+final_grp_score_data<-merge(final_grp_score_data,fa_effimaging_grp,by="Provider.ID", all=T)
+colnames(final_grp_score_data)[ncol(final_grp_score_data)]<-"effimaging_scr"
+
+final_grp_score_data<-final_grp_score_data[,-c(2:8)]
+
+# THE BELOW HOSPITALS WILL NOT BE GIVEN RATING BECAUE THEY DONT HAVE A SCORE FOR MORTALITY
+# READMISSION AND SAFETY. HOSPITALS SHOULD HAVE ATLEAST ONE OUTCOME SCORE #
+hosp_no_rating <- which(
+  is.na(final_grp_score_data$mortality_scr) &
+    is.na(final_grp_score_data$readmission_scr) &
+    is.na(final_grp_score_data$safety_scr)
+)
+
+# FINDING COLUMNS WHICH ARE ALL NA #
+all_na<-which(!apply(final_grp_score_data[,-1],1,function(x) if_else(sum(is.na(x))==7,FALSE,TRUE)))
+
+hosp_no_rating<-union(hosp_no_rating,all_na)
+
+final_grp_score_data$GIVE_RATING<-TRUE
+final_grp_score_data[hosp_no_rating,"GIVE_RATING"]<-FALSE
+
+final_score<-function(grp_df){
+  weights<-grp_df/sum(grp_df,na.rm = T)
+  final_scr <-sum(grp_df*weights,na.rm = T)/7
+  return(final_scr)
+}
+
+final_grp_score_data$my_rating <- apply(final_grp_score_data[, -c(1,9)],1,function(x) final_score(x))
+
+## FINISHED FACT ANALYSIS ##
+
+# CREATING CLUSTER #
+set.seed(777)
+rating_cluster <- kmeans(final_grp_score_data$my_rating, 5, nstart = 100)
+
+# CHECKING THE COUNTS IN EACH CLUSTER AND ASSIGNED THE CLUSTER ID AS RATING TO OUR DF#
+summary(factor(rating_cluster$cluster))
+final_grp_score_data$cluster_id <- rating_cluster$cluster
+
+detach(package:plyr) ## THIS IS USED BECUASE IF WE HAVE USED plyr LIBRARY THEN GROUP_BY AND SUMMARIZE WONT WORK ##
+grp_data_final <- group_by(final_grp_score_data, cluster_id)
+summarise(grp_data_final,mean=mean(my_rating))
+
+# YOU CAN SEE THAT THE MEANS AND THE CLUSTER_ID ARE EXCHANGED FOR A FEW GROUPS#
+# CLUSTER ID 1 SHOULD BE CLUSTER ID 5
+# CLUSTER ID 2 SHOULD BE CLUSTER ID 4
+# CLUSTER ID 3 SHOULD BE CLUSTER ID 2
+# CLUSTER ID 4 SHOULD BE CLUSTER ID 1
+# CLUSTER ID 5 SHOULD BE CLUSTER ID 3
+
+
+final_grp_score_data$cluster_id <-
+if_else(
+  final_grp_score_data$cluster_id == 1,
+  5,
+  if_else(
+    final_grp_score_data$cluster_id == 2,
+    4,
+    if_else(
+      final_grp_score_data$cluster_id == 3,
+      2,
+      if_else(final_grp_score_data$cluster_id == 4, 1, 3)
+    )
+  )
+)
+
+grp_data_final <- group_by(final_grp_score_data, cluster_id)
+summarise(grp_data_final,mean=mean(my_rating),count=n())
+
+# THUS NOW YOU CAN SEE THAT THE MEANS AND THE CLUSTER_ID ARE CORRECTLY ALLOCATED #
+
+## RATING VALIDATION ##
+
+# ASSIGNING NOT AVAILABLE TO ALL THE HOSPITALS WHICH DONT HAVE ENOUGH GROUPS REPORTING #
+final_grp_score_data[which(!final_grp_score_data$GIVE_RATING),"cluster_id"]<-"Not Available"
+final_grp_score_data <-
+  merge(final_grp_score_data, HGI_Hosp[, c(1, 13)], by = "Provider.ID")
+cross_table = table(final_grp_score_data$cluster_id, final_grp_score_data$Hospital.overall.rating)
+confusionMatrix(cross_table)
+
+## RATING VALIDATION ##
